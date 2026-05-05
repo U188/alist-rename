@@ -1,8 +1,8 @@
 # secrets / local config
 .env
-runtime_config.py
 config.json
 config.*.json
+!config.example.json
 ui_config.json
 ui_config*.json
 

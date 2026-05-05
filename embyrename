@@ -277,7 +277,7 @@ cmd_daemon() {
   (
     cd "$DIR"
     export EMBYRENAME_CONFIG_DIR="$CONFIG_DIR"
-    nohup "$VENV/bin/python" "$PY" --log-web --log-host "$host" --log-port "$port" --log-token "$token" > "$LOGDIR/daemon.out" 2>&1 &
+    nohup "$VENV/bin/python" "$PY" > "$LOGDIR/daemon.out" 2>&1 &
     echo $! > "$PIDFILE"
   )
   sleep 1

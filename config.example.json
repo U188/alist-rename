@@ -1,0 +1,15 @@
+{
+  "alist_url": "http://127.0.0.1:5244",
+  "alist_token": "your_alist_token",
+  "tmdb_key": "your_tmdb_key",
+  "tmdb_lang": "zh-CN",
+  "roots": ["/电视剧", "/动漫"],
+  "auto_roots": false,
+  "dry_run": true,
+  "resume": false,
+  "ai_base_url": "https://api.openai.com/v1",
+  "ai_api_key": "",
+  "ai_model": "gpt-4o-mini",
+  "log_host": "127.0.0.1",
+  "log_port": 55255
+}
