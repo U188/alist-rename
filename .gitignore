@@ -1,0 +1,32 @@
+# secrets / local config
+.env
+runtime_config.py
+config.json
+config.*.json
+ui_config.json
+ui_config*.json
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# runtime state / logs / caches
+logs/
+*.pid
+*.out
+*.log
+*.out.*
+*.bak-*
+tmdb_cache.json
+roots_cache.json
+roots_cache.*.json
+roots_cache.autodetect.json
+state.jsonl
+undo-*.jsonl
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="$DIR/renamer.py"
+VENV="$DIR/.venv"
+CONFIG_DIR="${EMBYRENAME_CONFIG_DIR:-${EMBYRENAME_HOME:-$DIR}}"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+LOGDIR="$CONFIG_DIR/logs"
+PIDFILE="$CONFIG_DIR/daemon.pid"
+
+usage() {
+  cat <<USAGE
+用法：
+  ./embyrename setup                         # 一次性向导：生成/更新 config.json
+  ./embyrename search "关键词"               # 只用 AList 搜索，不改动任何东西
+  ./embyrename fix   "关键词"                # 只修复一个剧：plan → 确认 → apply
+  ./embyrename plan  [--only "关键词"] [--ui]        # 预演，不改动
+  ./embyrename apply [--only "关键词"] [--yes] [--ui]# 真执行（默认二次确认）
+  ./embyrename go    [--only "关键词"] [--ui]        # 一键：plan → 确认 → apply
+
+  ./embyrename batch [--ui]                  # 批量：按 config.json 的 roots/auto_roots 执行
+  ./embyrename daemon [--ui]                 # 后台启动 WebUI/任务中心
+  ./embyrename status                        # 查看后台 WebUI 状态
+  ./embyrename stop                          # 停止后台 WebUI
+  ./embyrename undo  <undo.jsonl> [--yes]    # 回滚上一次 apply 产生的 rename/move
+
+说明：
+  - 本项目已废弃 .env；所有业务配置只读取/写入：$CONFIG_FILE
+  - 可用 EMBYRENAME_CONFIG_DIR 指定独立配置/日志目录。
+  - AI/TMDB/AList/roots/日志端口等均在 config.json 或 WebUI 设置页维护。
+USAGE
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "缺少命令：$1" >&2
+    exit 1
+  }
+}
+
+ensure_venv() {
+  need_cmd python3
+  if [[ ! -d "$VENV" ]]; then
+    echo "[+] 创建虚拟环境 $VENV"
+    python3 -m venv "$VENV" || true
+    if [[ ! -f "$VENV/bin/activate" ]]; then
+      echo "[ERROR] 虚拟环境创建失败：$VENV/bin/activate 不存在" >&2
+      echo "解决：先安装依赖，再重试：" >&2
+      echo "  sudo apt-get update && sudo apt-get install -y python3-venv python3-pip" >&2
+      exit 3
+    fi
+  fi
+  # shellcheck disable=SC1091
+  source "$VENV/bin/activate"
+  python -c "import requests" >/dev/null 2>&1 || {
+    echo "[+] 安装依赖（requests）"
+    pip install -q -r "$DIR/requirements.txt"
+  }
+}
+
+cfg_py() {
+  ensure_venv
+  EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python - "$@"
+}
+
+require_config() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "未找到配置：$CONFIG_FILE" >&2
+    echo "请先运行 ./embyrename setup，或启动 ./embyrename daemon 后在 WebUI 设置页填写。" >&2
+    exit 2
+  fi
+}
+
+config_value() {
+  local key="$1"
+  cfg_py "$key" <<'PY'
+import os, sys
+from runtime_config import RuntimeConfigStore
+cfg = RuntimeConfigStore(os.environ.get("EMBYRENAME_CONFIG_DIR")).load()
+v = cfg.get(sys.argv[1], "")
+if isinstance(v, list):
+    print(",".join(str(x) for x in v if str(x).strip()))
+elif isinstance(v, bool):
+    print("1" if v else "0")
+else:
+    print("" if v is None else str(v))
+PY
+}
+
+config_argv() {
+  cfg_py "$@" <<'PY'
+import os, shlex, sys
+from runtime_config import RuntimeConfigStore
+store = RuntimeConfigStore(os.environ.get("EMBYRENAME_CONFIG_DIR"))
+cfg = store.load()
+extra = list(sys.argv[1:])
+if "--apply-mode" in extra:
+    cfg["dry_run"] = False
+    extra.remove("--apply-mode")
+elif "--plan-mode" in extra:
+    cfg["dry_run"] = True
+    extra.remove("--plan-mode")
+argv = store.config_to_argv(cfg) + extra
+print("\0".join(argv))
+PY
+}
+
+run_python_with_config() {
+  local mode_flag="$1"; shift
+  require_config
+  ensure_venv
+  local raw=()
+  while IFS= read -r -d '' arg; do
+    raw+=("$arg")
+  done < <(EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python - "$mode_flag" "$@" <<'PY'
+import os, sys
+from runtime_config import RuntimeConfigStore
+store = RuntimeConfigStore(os.environ.get("EMBYRENAME_CONFIG_DIR"))
+cfg = store.load()
+args = list(sys.argv[1:])
+mode = args.pop(0)
+cfg["dry_run"] = (mode == "--plan-mode")
+argv = store.config_to_argv(cfg) + args
+sys.stdout.write("\0".join(argv))
+PY
+)
+  EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python "$PY" "${raw[@]}"
+}
+
+cmd_setup() {
+  mkdir -p "$CONFIG_DIR"
+  ensure_venv
+  echo "[SETUP] 配置文件：$CONFIG_FILE"
+  echo "[SETUP] 请输入你的配置（直接回车跳过，保留已有/默认值）："
+  read -r -p "AList URL (如 http://127.0.0.1:5244): " alist_url
+  read -r -p "AList Token: " alist_token
+  read -r -p "TMDB Key: " tmdb_key
+  read -r -p "AI API Key (可选，回车跳过): " ai_key
+  EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python - "$alist_url" "$alist_token" "$tmdb_key" "$ai_key" <<'PY'
+import os, sys
+from runtime_config import RuntimeConfigStore
+store = RuntimeConfigStore(os.environ.get("EMBYRENAME_CONFIG_DIR"))
+keys = ["alist_url", "alist_token", "tmdb_key", "ai_api_key"]
+payload = {k: v for k, v in zip(keys, sys.argv[1:]) if str(v).strip()}
+cfg = store.save(payload, include_empty=False)
+print(f"[OK] 已写入 {store.config_path}")
+PY
+
+  local alist_url_now alist_token_now
+  alist_url_now="$(config_value alist_url)"
+  alist_token_now="$(config_value alist_token)"
+  if [[ -n "$alist_url_now" && -n "$alist_token_now" ]]; then
+    echo "[SETUP] 尝试自动发现媒体根目录（只输出候选，不会改动文件）..."
+    found=$(EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python "$PY" --alist-url "$alist_url_now" --alist-token "$alist_token_now" --discover-only 2>/dev/null || true)
+    if [[ -n "$found" ]]; then
+      EMBYRENAME_CONFIG_DIR="$CONFIG_DIR" python - "$found" <<'PY'
+import os, sys
+from runtime_config import RuntimeConfigStore
+RuntimeConfigStore(os.environ.get("EMBYRENAME_CONFIG_DIR")).save({"roots": sys.argv[1], "auto_roots": False})
+PY
+      echo "[OK] 已写入 roots：$found"
+    else
+      echo "[WARN] 未自动发现 roots。可在 WebUI 设置页手动填写，或启用 auto_roots。"
+    fi
+  fi
+
+  echo
+  echo "完成。下一步建议："
+  echo "  ./embyrename daemon"
+  echo "  ./embyrename search \"关键词\""
+  echo "  ./embyrename plan --only \"关键词\""
+}
+
+cmd_search() {
+  local keyword="${1-}"
+  [[ -z "$keyword" ]] && { usage; exit 1; }
+  run_python_with_config --plan-mode --search-only "$keyword"
+}
+
+run_mode() {
+  local mode="$1"; shift || true
+  local ui=0
+  local keyword=""
+  local rest=()
+  [[ "$(config_value log_web 2>/dev/null || true)" == "1" ]] && ui=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ui) ui=1; shift ;;
+      --no-ui) ui=0; shift ;;
+      --only|--keyword) keyword="${2-}"; shift 2 ;;
+      *) rest+=("$1"); shift ;;
+    esac
+  done
+  local extra=()
+  [[ $ui -eq 1 ]] && extra+=(--log-web)
+  [[ -n "$keyword" ]] && extra+=(--keyword "$keyword")
+  extra+=("${rest[@]}")
+  if [[ "$mode" == "apply" ]]; then
+    run_python_with_config --apply-mode "${extra[@]}"
+  else
+    run_python_with_config --plan-mode "${extra[@]}"
+  fi
+}
+
+cmd_fix() {
+  local keyword="${1-}"
+  [[ -z "$keyword" ]] && { usage; exit 1; }
+  echo "[GO] 先预演(plan)，确认后执行(apply)"
+  run_mode plan --only "$keyword" "${@:2}" || true
+  echo
+  read -r -p "确认执行 apply？(y/N): " ans
+  if [[ "$ans" =~ ^[Yy]$ ]]; then
+    run_mode apply --only "$keyword" "${@:2}" || true
+  else
+    echo "已取消。"
+  fi
+}
+
+cmd_plan() { run_mode plan "$@"; }
+
+cmd_apply() {
+  local yes=0
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yes) yes=1; shift ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  if [[ $yes -ne 1 ]]; then
+    echo "将执行真实改名/移动操作。"
+    read -r -p "确认继续？(y/N): " ans
+    [[ "$ans" =~ ^[Yy]$ ]] || { echo "已取消。"; exit 1; }
+  fi
+  run_mode apply "${args[@]}"
+}
+
+cmd_go() {
+  cmd_plan "$@" || true
+  echo
+  read -r -p "确认执行 apply？(y/N): " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || { echo "已取消。"; exit 1; }
+  cmd_apply --yes "$@"
+}
+
+cmd_batch() {
+  local ui=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ui) ui=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  local extra=()
+  [[ $ui -eq 1 ]] && extra+=(--log-web)
+  run_python_with_config --apply-mode "${extra[@]}"
+}
+
+cmd_daemon() {
+  mkdir -p "$CONFIG_DIR" "$LOGDIR"
+  ensure_venv
+  local host port token
+  host="$(config_value log_host 2>/dev/null || true)"
+  port="$(config_value log_port 2>/dev/null || true)"
+  token="$(config_value readonly_token 2>/dev/null || true)"
+  [[ -z "$host" ]] && host="0.0.0.0"
+  [[ -z "$port" ]] && port="55255"
+
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "[DAEMON] 已在运行 PID=$(cat "$PIDFILE")"
+    echo "[DAEMON] UI: http://127.0.0.1:${port}/?token=${token}"
+    return 0
+  fi
+
+  echo "[DAEMON] 后台启动 WebUI/任务中心..."
+  (
+    cd "$DIR"
+    export EMBYRENAME_CONFIG_DIR="$CONFIG_DIR"
+    nohup "$VENV/bin/python" "$PY" --log-web --log-host "$host" --log-port "$port" --log-token "$token" > "$LOGDIR/daemon.out" 2>&1 &
+    echo $! > "$PIDFILE"
+  )
+  sleep 1
+  echo "[DAEMON] PID=$(cat "$PIDFILE")"
+  echo "[DAEMON] UI: http://127.0.0.1:${port}/?token=${token}"
+}
+
+cmd_status() {
+  local port token
+  port="$(config_value log_port 2>/dev/null || echo 55255)"
+  token="$(config_value readonly_token 2>/dev/null || true)"
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "[STATUS] running pid=$(cat "$PIDFILE")"
+    echo "[STATUS] ui : http://127.0.0.1:${port}/?token=${token}"
+  else
+    echo "[STATUS] not running"
+  fi
+}
+
+cmd_stop() {
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    local pid
+    pid="$(cat "$PIDFILE")"
+    echo "[STOP] stopping pid=$pid"
+    kill "$pid" 2>/dev/null || true
+    rm -f "$PIDFILE"
+  else
+    echo "[STOP] not running"
+    rm -f "$PIDFILE"
+  fi
+}
+
+cmd_undo() {
+  local file="${1-}"
+  [[ -z "$file" ]] && { usage; exit 1; }
+  shift || true
+  local yes=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yes) yes=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  local extra=(--undo "$file")
+  [[ $yes -eq 1 ]] && extra+=(--yes)
+  run_python_with_config --apply-mode "${extra[@]}"
+}
+
+main() {
+  local cmd="${1-}"
+  shift || true
+  case "$cmd" in
+    setup) cmd_setup "$@" ;;
+    search) cmd_search "$@" ;;
+    fix) cmd_fix "$@" ;;
+    plan) cmd_plan "$@" ;;
+    apply) cmd_apply "$@" ;;
+    go) cmd_go "$@" ;;
+    batch) cmd_batch "$@" ;;
+    daemon) cmd_daemon "$@" ;;
+    status) cmd_status "$@" ;;
+    stop) cmd_stop "$@" ;;
+    undo) cmd_undo "$@" ;;
+    -h|--help|help|"") usage ;;
+    *) echo "未知命令: $cmd" >&2; usage; exit 1 ;;
+  esac
+}
+
+main "$@"
