@@ -66,10 +66,12 @@ export EMBYRENAME_CONFIG_DIR=/opt/embyrename
 - 可访问的 AList / OpenList 服务
 - TMDB API Key（建议配置）
 - 可选：兼容 OpenAI API 的 AI 服务
-- Python 依赖：
+- Python 依赖通过项目虚拟环境安装，推荐使用：
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+./.venv/bin/python -m pip install -U pip
+./.venv/bin/python -m pip install -r requirements.txt
 ```
 
 当前 `requirements.txt` 至少包含：
@@ -80,20 +82,29 @@ requests>=2.31.0
 
 ## 快速开始
 
+如果是在当前已部署目录中运行：
+
 ```bash
-git clone https://github.com/KingStoning/alist-rename.git
-cd alist-rename
+cd /root/Desktop/alist-rename-refactor
 chmod +x embyrename
-pip install -r requirements.txt
+python3 -m venv .venv
+./.venv/bin/python -m pip install -U pip
+./.venv/bin/python -m pip install -r requirements.txt
 ./embyrename setup
 ```
 
-`setup` 会生成或更新 `config.json`，并尝试辅助初始化配置。
+如果是新机器从仓库安装，请先 `git clone` 到目标目录，再执行上面的安装命令。`setup` 会生成或更新 `config.json`。本项目不再使用 `.env`。
 
-启动 WebUI：
+启动 WebUI / 任务中心：
 
 ```bash
 ./embyrename daemon
+```
+
+实际后台启动的进程等价于：
+
+```bash
+EMBYRENAME_CONFIG_DIR=/path/to/config-dir ./.venv/bin/python renamer.py
 ```
 
 默认访问：
@@ -123,6 +134,10 @@ http://127.0.0.1:55255/
   "auto_roots": false,
   "dry_run": true,
   "resume": false,
+  "organize_enabled": false,
+  "target_root": "",
+  "scan_exclude_target": true,
+  "move_individual": true,
   "ai_base_url": "https://api.openai.com/v1",
   "ai_api_key": "",
   "ai_model": "gpt-4o-mini",
@@ -163,27 +178,38 @@ http://127.0.0.1:55255/
 
 ## 常用命令
 
+推荐使用 Bash 启动器 `./embyrename`，它会读取 `config.json`，必要时自动准备 `.venv`，并调用 `renamer.py` / `alist_rename.cli`。
+
 ```bash
+./embyrename help                          # 查看启动器命令
 ./embyrename setup                         # 一次性向导：生成/更新 config.json
-./embyrename search "关键词"               # 只搜索，不改动任何东西
+./embyrename search "关键词"               # 只用 AList 搜索，不改动任何东西
 ./embyrename fix   "关键词"                # 只修复一个剧：plan → 确认 → apply
 
-./embyrename plan  [--only "关键词"] [--ui]        # 预演，不改动
-./embyrename apply [--only "关键词"] [--yes] [--ui]# 真执行，默认二次确认
-./embyrename go    [--only "关键词"] [--ui]        # 一键：plan → 确认 → apply
+./embyrename plan  [--only "关键词"] [--ui]         # 预演，不改动
+./embyrename apply [--only "关键词"] [--yes] [--ui] # 真执行，默认二次确认
+./embyrename go    [--only "关键词"] [--ui]         # 一键：plan → 确认 → apply
 
 ./embyrename batch [--ui]                  # 批量：按 config.json 的 roots/auto_roots 执行
-./embyrename daemon [--ui]                 # 后台启动 WebUI/任务中心
+./embyrename daemon                        # 后台启动 WebUI/任务中心
 ./embyrename status                        # 查看后台 WebUI 状态
 ./embyrename stop                          # 停止后台 WebUI
 ./embyrename undo  <undo.jsonl> [--yes]    # 回滚上一次 apply 产生的 rename/move
 ```
 
+等价的 Python 入口主要用于调试：
+
+```bash
+./.venv/bin/python renamer.py --help       # 查看底层 CLI 参数
+./.venv/bin/python renamer.py              # 前台启动 WebUI；无参数且 cli_mode=false 时进入 WebUI
+./.venv/bin/python -m alist_rename --help  # 模块入口
+```
+
 说明：
 
-- 启动器不会读取 `.env`。
-- CLI 会从 `config.json` 合成运行参数，再交给 `renamer.py` / `alist_rename.cli`。
-- `--ui` 用于让任务日志同步到 WebUI。
+- 启动器不会读取 `.env`。业务配置只读写 `config.json`。
+- `EMBYRENAME_CONFIG_DIR=/path/to/dir` 可指定独立的 `config.json`、日志、pid 文件目录。
+- `--ui` 只用于 `plan` / `apply` / `go` / `batch` 等任务命令，让任务日志同步到 WebUI；`daemon` 不需要 `--ui`。
 - `--yes` 用于跳过执行前二次确认，自动化场景才建议使用。
 
 ## WebUI 与日志
@@ -192,6 +218,12 @@ http://127.0.0.1:55255/
 
 ```bash
 ./embyrename daemon
+```
+
+前台调试 WebUI：
+
+```bash
+./.venv/bin/python renamer.py
 ```
 
 WebUI 主要能力：
@@ -217,7 +249,7 @@ logs/webui-run-YYYYMMDD-HHMMSS.log
 - `logs/latest-webui.log`：固定“最新一次 WebUI 任务日志”，方便直接查看最新问题。
 - `logs/webui-run-YYYYMMDD-HHMMSS.log`：每次运行独立保存，便于追溯历史。
 - CLI 普通运行日志仍会按运行逻辑写入 `logs/embyrename-*.log`。
-- WebUI 后台服务自身输出通常在 `logs/webui-service.log`。
+- `./embyrename daemon` 后台服务自身输出在 `logs/daemon.out`。
 
 查看最新 WebUI 任务日志：
 
@@ -353,9 +385,10 @@ tail -n 200 logs/latest-webui.log
 ## 开发验证
 
 ```bash
-python3 -m py_compile renamer.py logui.py runtime_config.py
-python3 -m py_compile alist_rename/web/hub.py alist_rename/cli.py
-./embyrename --help
+./.venv/bin/python -m py_compile renamer.py logui.py runtime_config.py
+./.venv/bin/python -m py_compile alist_rename/web/hub.py alist_rename/cli.py alist_rename/config.py
+./embyrename help
+./.venv/bin/python renamer.py --help
 ```
 
 如果改动 WebUI 前端，主要查看：

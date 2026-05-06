@@ -1,11 +1,13 @@
 """Cleanup and subtitle relocation helpers."""
 from __future__ import annotations
 
+import logging
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-from logui import LogHub
+if TYPE_CHECKING:
+    from logui import LogHub
 from alist_rename.config import CURRENT_RUNTIME_CONFIG
 from alist_rename.clients.alist import AlistClient
 from alist_rename.common.paths import join_path, norm_path
@@ -15,11 +17,13 @@ from alist_rename.media.naming import season_folder_name
 from alist_rename.ops.filesystem import maybe_move
 
 SUB_EXTS = {".srt", ".ass", ".ssa", ".vtt", ".sub"}
-DEFAULT_SKIP_DIR_REGEX = r"(福利|广告|推广|促销|活动|限时福利|限时|UC官方|阿里|Promo|sample|Samples?|Extras?|花絮|特典|周边|海报|Poster|封面|截图|Thumbs|@eaDir|\\.sync|lost\\+found|电影|Movie|剧场版|MOVIE)"
+log = logging.getLogger(__name__)
+
+DEFAULT_SKIP_DIR_REGEX = r"(福利|广告|推广|促销|活动|限时福利|限时|UC官方|阿里|Promo|sample|Samples?|Extras?|花絮|特典|周边|海报|Poster|封面|截图|Thumbs|@eaDir|\\.sync|lost\\+found)"
 
 
 
-def logger(hub: Optional[LogHub], level: str, message: str):
+def logger(hub: Optional["LogHub"], level: str, message: str):
     if hub:
         hub.emit(level, message)
     else:
@@ -74,7 +78,7 @@ def is_subtitle_dir_name(name: str) -> bool:
     nl = (name or "").strip().lower()
     return nl in SUBTITLE_DIR_NAMES
 
-def cleanup_ads_in_dir(client: AlistClient, dir_path: str, hub: Optional[LogHub], dry_run: bool = False):
+def cleanup_ads_in_dir(client: AlistClient, dir_path: str, hub: Optional["LogHub"], dry_run: bool = False):
     """Best-effort cleanup of obvious ad/junk files or folders.
 
     * Won't delete .txt (user requirement)
@@ -86,7 +90,7 @@ def cleanup_ads_in_dir(client: AlistClient, dir_path: str, hub: Optional[LogHub]
     try:
         entries = client.list_dir(dir_path, refresh=False)
     except Exception as e:
-        logger.warning("[WARN] cleanup listdir failed: %s : %s", dir_path, e)
+        log.warning("[WARN] cleanup listdir failed: %s : %s", dir_path, e)
         return
 
     del_files: List[str] = []
@@ -129,7 +133,19 @@ def cleanup_ads_in_dir(client: AlistClient, dir_path: str, hub: Optional[LogHub]
         if not dry_run:
             client.remove(dir_path, del_dirs)
 
-def report_empty_dir(client: AlistClient, dir_path: str, hub: Optional[LogHub], dry_run: bool = False):
+def _emit_cleanup(hub: Optional["LogHub"], level: str, msg: str):
+    if hub:
+        try:
+            hub.emit(level, msg)
+            return
+        except Exception:
+            pass
+    if level.upper() in {"WARN", "ERROR"}:
+        log.warning(msg)
+    else:
+        log.info(msg)
+
+def report_empty_dir(client: AlistClient, dir_path: str, hub: Optional["LogHub"], dry_run: bool = False):
     """Report an empty directory without deleting it."""
     dir_path = norm_path(dir_path)
     if not dir_path or dir_path in {"/", "."}:
@@ -146,13 +162,109 @@ def report_empty_dir(client: AlistClient, dir_path: str, hub: Optional[LogHub], 
     msg = f"[EMPTY] folder left empty: {dir_path}"
     if dry_run:
         msg = f"[DRY] {msg}"
-    if hub:
+    _emit_cleanup(hub, "WARN", msg)
+
+def remove_empty_source_dirs(
+    client: AlistClient,
+    dir_paths: List[str],
+    hub: Optional["LogHub"],
+    dry_run: bool = False,
+    skip_dir_regex: str = "",
+):
+    """Optionally remove ordinary source subdirectories that became empty in this run.
+
+    Safety constraints:
+    - Disabled by default via delete_empty_source_dirs.
+    - Only paths explicitly collected from this run are considered.
+    - Never removes root, season dirs, skipped/junk dirs, subtitle dirs, or non-empty dirs.
+    """
+    if not bool(CURRENT_RUNTIME_CONFIG.get("delete_empty_source_dirs", False)):
+        return
+
+    seen = set()
+    for raw in dir_paths or []:
+        dir_path = norm_path(raw)
+        if not dir_path or dir_path in {"/", "."} or dir_path in seen:
+            continue
+        seen.add(dir_path)
+        name = os.path.basename(dir_path.rstrip("/"))
+        if not name:
+            continue
+        if is_season_dir(name) or is_subtitle_dir_name(name) or should_skip_misc_folder(name, skip_dir_regex):
+            continue
         try:
-            hub.emit("WARN", msg)
-            return
+            entries = client.list_dir(dir_path, refresh=False)
+        except Exception as e:
+            _emit_cleanup(hub, "WARN", f"[EMPTY] check failed: {dir_path} ({e})")
+            continue
+        if entries:
+            continue
+        if dry_run:
+            _emit_cleanup(hub, "WARN", f"[DRY] [EMPTY] would remove empty source folder: {dir_path}")
+            continue
+        parent, child = os.path.split(dir_path.rstrip("/"))
+        parent = norm_path(parent or "/")
+        if not child:
+            continue
+        try:
+            client.remove(parent, [child])
+            _emit_cleanup(hub, "INFO", f"[EMPTY] removed empty source folder: {dir_path}")
+        except Exception as e:
+            _emit_cleanup(hub, "WARN", f"[EMPTY] remove failed: {dir_path} ({e})")
+
+
+def remove_empty_target_root_dirs(
+    client: AlistClient,
+    target_root: str,
+    protected_names: List[str],
+    hub: Optional["LogHub"],
+    dry_run: bool = False,
+):
+    """Remove empty direct children under target_root, except configured category containers.
+
+    This is intentionally narrow: it only checks target_root/* and never descends.
+    Configured 一级分类容器 (for example 动漫/电视剧/电影 or user-custom buckets)
+    are protected even when empty; accidental empty folders such as "80动漫（1983）"
+    can be cleaned when delete_empty_source_dirs is enabled.
+    """
+    if not bool(CURRENT_RUNTIME_CONFIG.get("delete_empty_source_dirs", False)):
+        return
+
+    root = norm_path(target_root or "")
+    if not root or root in {"/", "."}:
+        return
+    protected = {str(n or "").strip().strip("/") for n in (protected_names or []) if str(n or "").strip().strip("/")}
+
+    try:
+        entries = client.list_dir(root, refresh=False)
+    except Exception as e:
+        _emit_cleanup(hub, "WARN", f"[EMPTY] target root check failed: {root} ({e})")
+        return
+
+    for ent in entries or []:
+        try:
+            is_dir = bool(getattr(ent, "is_dir", False))
+            name = str(getattr(ent, "name", "") or "").strip()
         except Exception:
-            pass
-    logger.warning(msg)
+            continue
+        if not is_dir or not name or name in protected:
+            continue
+        child_path = norm_path(f"{root.rstrip('/')}/{name}")
+        try:
+            child_entries = client.list_dir(child_path, refresh=False)
+        except Exception as e:
+            _emit_cleanup(hub, "WARN", f"[EMPTY] target child check failed: {child_path} ({e})")
+            continue
+        if child_entries:
+            continue
+        if dry_run:
+            _emit_cleanup(hub, "WARN", f"[DRY] [EMPTY] would remove empty target-root folder: {child_path}")
+            continue
+        try:
+            client.remove(root, [name])
+            _emit_cleanup(hub, "INFO", f"[EMPTY] removed empty target-root folder: {child_path}")
+        except Exception as e:
+            _emit_cleanup(hub, "WARN", f"[EMPTY] remove target-root folder failed: {child_path} ({e})")
 
 def build_season_dir_map(client: AlistClient, series_path: str) -> Dict[int, str]:
     """Map season number -> season directory path for a show folder."""

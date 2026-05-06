@@ -23,8 +23,8 @@ from alist_rename.media.resolver import (
     is_same_show_container_folder, looks_like_show_folder_name, pick_organized_destination, resolve_series,
 )
 from alist_rename.ops.cleanup import (
-    cleanup_ads_in_dir, contains_junk_marker, relocate_subtitles_in_show_root, report_empty_dir,
-    should_skip_misc_folder,
+    cleanup_ads_in_dir, contains_junk_marker, relocate_subtitles_in_show_root, remove_empty_source_dirs,
+    report_empty_dir, should_skip_misc_folder,
 )
 from alist_rename.ops.filesystem import (
     ensure_dir, maybe_move, maybe_move_folder_to_dir, maybe_rename, maybe_rename_path, related_sidecars,
@@ -143,7 +143,7 @@ def process_series_folder(
         return series_path, None
 
     series_context = gather_series_context(client, series_path, skip_dir_regex)
-    meta = resolve_series(tmdb, folder_name, cache, ai, log, series_context=series_context)
+    meta = resolve_series(tmdb, folder_name, cache, ai, log, series_context=series_context, category_region_map=category_region_map or {})
     if not meta:
         log.append(f"[SKIP] TMDB not found for: {series_path}")
         return series_path, None
@@ -198,6 +198,7 @@ def process_series_folder(
     # 3) scan root + one-level misc folders (quality folders etc) to merge scattered seasons
     #    BUT do NOT treat nested "show folders" (e.g. a franchise collection) as seasons.
     scan_dirs: List[str] = [new_series_path]
+    empty_source_candidates: List[str] = []
     nested_show_dirs: List[str] = []
     for e in root_entries:
         if not e.is_dir:
@@ -213,7 +214,9 @@ def process_series_folder(
             nested_show_dirs.append(join_path(new_series_path, e.name))
             continue
 
-        scan_dirs.append(join_path(new_series_path, e.name))
+        child_scan_dir = join_path(new_series_path, e.name)
+        scan_dirs.append(child_scan_dir)
+        empty_source_candidates.append(child_scan_dir)
 
     # season hint for root, derived from original folder name (before renaming)
     root_season_hint = meta.season_hint
@@ -468,6 +471,7 @@ def process_series_folder(
             except Exception as e:
                 log.append(f"[ERROR] failed to process nested show folder {child_path}: {e}")
 
+    remove_empty_source_dirs(client, empty_source_candidates, hub, dry_run=dry_run, skip_dir_regex=skip_dir_regex)
     report_empty_dir(client, new_series_path, hub, dry_run=dry_run)
     return new_series_path, meta
 

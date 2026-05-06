@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from logui import LogHub
+from alist_rename.web.hub import LogHub
 from alist_rename.clients.ai import AIClient
 from alist_rename.clients.alist import AlistClient
 from alist_rename.clients.tmdb import TMDBClient
@@ -181,7 +181,7 @@ def _norm_region_token(text: Any) -> str:
     s = s.replace(" ", "")
     return s
 
-def infer_category_region_from_tmdb(details: Dict[str, Any], mapping: Dict[str, List[str]], title_hint: str = "") -> Tuple[Optional[str], Optional[str]]:
+def infer_category_region_from_tmdb(details: Dict[str, Any], mapping: Dict[str, Any], title_hint: str = "") -> Tuple[Optional[str], Optional[str]]:
     category: Optional[str] = None
     region: Optional[str] = None
 
@@ -203,72 +203,135 @@ def infer_category_region_from_tmdb(details: Dict[str, Any], mapping: Dict[str, 
                         origin_countries.append(nm)
 
     normalized_title_hint = clean_series_query(title_hint or "").lower()
+
+    def _candidate_regions_for(cat: Optional[str]) -> List[str]:
+        if not cat:
+            return []
+        raw = mapping.get(cat)
+        if isinstance(raw, list):
+            return [str(x).strip() for x in raw if str(x).strip()]
+        if isinstance(raw, str) and raw.strip():
+            return [raw.strip()]
+        return []
+
     strong_category_keywords = {
-        "动漫": ("动漫", "动画", "番剧", "番", "国漫", "日漫", "美漫", "anime", "animation"),
-        "动画": ("动漫", "动画", "番剧", "番", "国漫", "日漫", "美漫", "anime", "animation"),
+        "国漫": ("国漫", "国产动漫", "国产动画"),
+        "国产动漫": ("国漫", "国产动漫", "国产动画"),
+        "动漫": ("动漫", "动画", "番剧", "番", "anime", "animation"),
+        "日漫": ("日漫",),
         "纪录片": ("纪录片", "紀錄片", "documentary", "docu"),
         "综艺": ("综艺", "綜藝", "真人秀", "脱口秀", "talk show", "reality show", "variety"),
+        "国产剧": ("国产剧", "国剧", "内地剧", "大陆剧", "中国电视剧", "华语剧"),
+        "华语剧": ("华语剧",),
+        "港剧": ("港剧",),
+        "台剧": ("台剧",),
+        "日剧": ("日剧",),
+        "韩剧": ("韩剧",),
+        "美剧": ("美剧",),
+        "英剧": ("英剧",),
+        "泰剧": ("泰剧",),
+        "欧美剧": ("欧美剧",),
+        "海外剧": ("海外剧",),
     }
     for cat, keywords in strong_category_keywords.items():
         if cat in mapping and normalized_title_hint and any(k in normalized_title_hint for k in keywords):
             category = cat
             break
 
-    category_aliases = {
-        "纪录片": {"documentary"},
-        "动漫": {"animation", "anime"},
-        "动画": {"animation", "anime"},
-        "综艺": {"reality", "talk", "news"},
-        "剧集": {"drama", "comedy", "crime", "mystery", "sci-fi & fantasy", "action & adventure", "war & politics", "family", "kids"},
-    }
     if category is None:
-        for cat, aliases in category_aliases.items():
-            if cat in mapping and (genre_names & aliases):
-                category = cat
-                break
-    if category is None:
-        if "动漫" in mapping and any(x in genre_names for x in ("animation", "anime")):
-            category = "动漫"
-        elif "纪录片" in mapping and "documentary" in genre_names:
+        if any(x in genre_names for x in ("animation", "anime")):
+            normalized_origins_probe = {_norm_region_token(x) for x in origin_countries if str(x or "").strip()}
+            if any(_norm_region_token(x) in normalized_origins_probe for x in ("CN", "中国", "中国大陆")) and "国漫" in mapping:
+                category = "国漫"
+            elif "动漫" in mapping:
+                category = "动漫"
+        elif "documentary" in genre_names and "纪录片" in mapping:
             category = "纪录片"
-        elif "综艺" in mapping and any(x in genre_names for x in ("reality", "talk", "news")):
+        elif any(x in genre_names for x in ("reality", "talk", "news")) and "综艺" in mapping:
             category = "综艺"
-        elif "剧集" in mapping:
-            category = "剧集"
-        elif mapping:
-            category = next(iter(mapping.keys()))
+        else:
+            normalized_origins_probe = {_norm_region_token(x) for x in origin_countries if str(x or "").strip()}
+            if any(_norm_region_token(x) in normalized_origins_probe for x in ("CN", "中国", "中国大陆", "大陆", "内地")):
+                category = "国产剧" if "国产剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("HK", "香港", "中国香港")):
+                category = "港剧" if "港剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("TW", "台湾", "中国台湾")):
+                category = "台剧" if "台剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("JP", "日本")):
+                category = "日剧" if "日剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("KR", "韩国", "south korea", "republic of korea")):
+                category = "韩剧" if "韩剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("US", "美国")):
+                category = "美剧" if "美剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("GB", "UK", "英国", "united kingdom")):
+                category = "英剧" if "英剧" in mapping else category
+            elif any(_norm_region_token(x) in normalized_origins_probe for x in ("TH", "泰国")):
+                category = "泰剧" if "泰剧" in mapping else category
+
+    if category is None and "海外剧" in mapping:
+        category = "海外剧"
+    elif category is None and mapping:
+        category = "其他" if "其他" in mapping else next(iter(mapping.keys()))
 
     region_aliases = {
-        "中国大陆": {"cn", "china", "中国", "中国大陆", "prc", "people'srepublicofchina", "people's republic of china"},
-        "大陆": {"cn", "china", "中国", "中国大陆", "大陆", "内地", "prc", "people'srepublicofchina", "people's republic of china"},
-        "中国香港": {"hk", "hongkong", "hong kong", "中国香港", "香港"},
-        "中国台湾": {"tw", "taiwan", "中国台湾", "台湾"},
-        "港台": {"hk", "hongkong", "hong kong", "中国香港", "香港", "tw", "taiwan", "中国台湾", "台湾", "港澳台", "港台"},
+        "中国": {"cn", "china", "中国", "中国大陆", "大陆", "内地", "prc", "people'srepublicofchina", "people's republic of china"},
+        "香港": {"hk", "hongkong", "hong kong", "中国香港", "香港"},
+        "台湾": {"tw", "taiwan", "中国台湾", "台湾"},
         "日本": {"jp", "japan", "日本"},
         "韩国": {"kr", "korea", "southkorea", "south korea", "republicofkorea", "republic of korea", "韩国"},
-        "日韩": {"jp", "japan", "日本", "kr", "korea", "southkorea", "south korea", "republicofkorea", "republic of korea", "韩国", "日韩"},
         "美国": {"us", "usa", "unitedstates", "united states", "美国"},
         "英国": {"gb", "uk", "britain", "unitedkingdom", "united kingdom", "英国"},
+        "泰国": {"th", "thailand", "泰国"},
         "欧美": {"us", "usa", "unitedstates", "united states", "美国", "gb", "uk", "britain", "unitedkingdom", "united kingdom", "英国", "eu", "europe", "欧洲", "法国", "德国", "西班牙", "意大利", "欧美"},
+        "海外": {"us", "usa", "unitedstates", "united states", "美国", "gb", "uk", "britain", "unitedkingdom", "united kingdom", "英国", "jp", "japan", "日本", "kr", "korea", "southkorea", "south korea", "republicofkorea", "republic of korea", "韩国", "th", "thailand", "泰国", "海外"},
+        "纪录片": {"纪录片"},
+        "综艺": {"综艺"},
+        "其他": {"其他"},
     }
     normalized_origins = {_norm_region_token(x) for x in origin_countries if str(x or "").strip()}
-    candidate_regions = mapping.get(category or "", []) if category else []
-    for reg in candidate_regions:
-        aliases = region_aliases.get(reg, {reg})
-        aliases = {_norm_region_token(x) for x in aliases}
-        if normalized_origins & aliases:
-            region = reg
-            break
+    candidate_regions = _candidate_regions_for(category)
+
+    if category in {"国产剧", "华语剧"} and "中国" in candidate_regions and any(_norm_region_token(x) in normalized_origins for x in region_aliases["中国"]):
+        region = "中国"
+    elif category == "港剧" and "香港" in candidate_regions and any(_norm_region_token(x) in normalized_origins for x in region_aliases["香港"]):
+        region = "香港"
+    elif category == "台剧" and "台湾" in candidate_regions and any(_norm_region_token(x) in normalized_origins for x in region_aliases["台湾"]):
+        region = "台湾"
+
+    if region is None:
+        for reg in candidate_regions:
+            aliases = region_aliases.get(reg, {reg})
+            aliases = {_norm_region_token(x) for x in aliases}
+            if normalized_origins & aliases:
+                region = reg
+                break
+
     if region is None and candidate_regions:
-        region = candidate_regions[-1]
+        if "其他" in candidate_regions:
+            region = "其他"
+        elif len(candidate_regions) == 1:
+            region = candidate_regions[0]
     return category, region
 
 def pick_organized_destination(series_path: str, organize_root: str, mapping: Dict[str, List[str]], meta: Optional[SeriesMeta] = None) -> str:
     organize_root = norm_path(organize_root)
+
+    # Guardrail: AI/TMDB metadata may contain broad or unexpected labels.
+    # Only use metadata to build a destination when it is explicitly allowed
+    # by the configured category/region map; otherwise fall back to path-based
+    # detection below (and ultimately organize_root). This prevents generating
+    # unintended directories such as 动画电影/日本 from raw AI output.
     if meta and meta.category:
-        if meta.region:
-            return join_path(join_path(organize_root, meta.category), meta.region)
-        return join_path(organize_root, meta.category)
+        category = str(meta.category).strip()
+        region = str(meta.region or '').strip()
+        if category in mapping:
+            allowed_regions = [str(x).strip() for x in (mapping.get(category) or []) if str(x).strip()]
+            if region:
+                if region in allowed_regions:
+                    return join_path(join_path(organize_root, category), region)
+            else:
+                return join_path(organize_root, category)
+
     sp = norm_path(series_path)
     parent_name = Path(sp).parent.name
     leaf_name = Path(sp).name
@@ -602,7 +665,7 @@ def ai_choose_tmdb(
     except Exception:
         return None
 
-def ai_extract_media_meta(ai: AIClient, folder_name: str, context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+def ai_extract_media_meta(ai: AIClient, folder_name: str, context: Optional[Dict[str, Any]] = None, allowed_mapping: Optional[Dict[str, List[str]]] = None) -> Optional[Dict[str, Any]]:
     """Use AI to infer coarse media metadata for organize fallback.
 
     Returns JSON-ish dict with optional keys:
@@ -623,22 +686,36 @@ def ai_extract_media_meta(ai: AIClient, folder_name: str, context: Optional[Dict
             "episode_file_count": ctx.get("episode_file_count"),
             "max_episode": ctx.get("max_episode"),
         }
+        allowed = allowed_mapping or DEFAULT_CATEGORY_REGION_MAP
+        allowed = {
+            str(cat).strip(): [str(reg).strip() for reg in (regions or []) if str(reg).strip()]
+            for cat, regions in allowed.items()
+            if str(cat).strip()
+        }
+        allowed_categories = list(allowed.keys())
+        allowed_regions = sorted({reg for regions in allowed.values() for reg in regions})
         system = "You infer coarse media library metadata for folder organization. Output JSON only."
         user = (
             "Given a possibly messy media folder name and a few filename hints, infer coarse metadata for library organization.\n"
             "Return JSON only with this schema:\n"
             "{\n"
             "  \"media_type\": \"movie\"|\"tv\"|\"anime\"|\"documentary\"|\"variety\"|\"unknown\",\n"
-            "  \"category\": \"电影\"|\"剧集\"|\"动漫\"|\"纪录片\"|\"综艺\"|null,\n"
-            "  \"region\": \"大陆\"|\"港台\"|\"欧美\"|\"日韩\"|\"其他\"|null,\n"
+            "  \"category\": string|null,\n"
+            "  \"region\": string|null,\n"
             "  \"source_language\": \"中文\"|\"国语\"|\"粤语\"|\"英语\"|\"日语\"|\"韩语\"|\"其他\"|null,\n"
             "  \"keywords\": [string,...],\n"
             "  \"confident\": true|false\n"
             "}\n\n"
+            "Allowed destination map constraints:\n"
+            f"- category MUST be one of: {json.dumps(allowed_categories, ensure_ascii=False)} or null.\n"
+            f"- region MUST be one of: {json.dumps(allowed_regions, ensure_ascii=False)} or null.\n"
+            f"- category/region pair MUST exist in this map: {json.dumps(allowed, ensure_ascii=False)}.\n"
+            "- If no allowed category/region pair fits, set category=null, region=null, confident=false.\n"
+            "- Never invent new category or region labels.\n\n"
             "Rules:\n"
-            "- 动漫/动画优先归到 category=动漫。\n"
-            "- 中国大陆动画电影/番剧，region 优先给 大陆。\n"
-            "- 香港/台湾作品可给 港台。日本/韩国作品给 日韩。欧美英语作品给 欧美。\n"
+            "- 动漫/动画优先归到 category=动漫 only when 动漫 exists in the allowed map.\n"
+            "- 中国大陆动画电影/番剧，region 优先给 大陆 only if the chosen category allows 大陆.\n"
+            "- 香港/台湾作品可给 港台；日本/韩国作品给 日韩；欧美英语作品给 欧美，but only if that region is allowed under the chosen category.\n"
             "- If unsure, keep null and set confident=false.\n\n"
             f"input: {json.dumps(payload, ensure_ascii=False)}"
         )
@@ -678,6 +755,7 @@ def resolve_series(
     ai: Optional[AIClient],
     log: List[str],
     series_context: Optional[Dict[str, Any]] = None,
+    category_region_map: Optional[Dict[str, List[str]]] = None,
 ) -> Optional[SeriesMeta]:
     """Resolve a series folder name to TMDB series meta.
 
@@ -689,6 +767,7 @@ def resolve_series(
     season_hint = parse_season_from_text(folder_name)
 
     ctx = series_context or {}
+    allowed_category_region_map = category_region_map or DEFAULT_CATEGORY_REGION_MAP
     year_hint = ctx.get("year_hint") or extract_year_hint(folder_name)
     english_title = (ctx.get("english_title") or "").strip()
 
@@ -703,9 +782,18 @@ def resolve_series(
         # Do not let old/low-quality cache entries permanently bypass the AI fallback.
         # If category/region is missing or still "其他", ask AI again and refresh the cache.
         ai_meta = None
-        if ai and ((not cached_category) or cached_category == "其他" or (not cached_region) or cached_region == "其他" or (not cached_confident)):
+        if ai and (
+            (not cached_category)
+            or cached_category == "其他"
+            or (not cached_region)
+            or cached_region == "其他"
+            or (not v.get("media_type"))
+            or (not v.get("source_language"))
+            or (not v.get("keywords"))
+            or (not cached_confident)
+        ):
             log.append(f"[AI] cache fallback needed '{folder_name}' | category={cached_category or '-'} | region={cached_region or '-'} | tmdb_confident={cached_confident}")
-            ai_meta = ai_extract_media_meta(ai, folder_name, context=ctx) or {}
+            ai_meta = ai_extract_media_meta(ai, folder_name, context=ctx, allowed_mapping=allowed_category_region_map) or {}
             err = ai.consume_last_error()
             if err:
                 log.append(f"[AI] cache assist failed '{folder_name}' -> kind={err.get('kind')} status={err.get('status_code') or '-'} retryable={err.get('retryable')} msg={err.get('message')}")
@@ -713,15 +801,27 @@ def resolve_series(
                 ai_category = ai_meta.get("category")
                 ai_region = ai_meta.get("region")
                 log.append(f"[AI] cache assist '{folder_name}' -> category={ai_category or '-'} | region={ai_region or '-'} | media_type={ai_meta.get('media_type') or '-'} | source_language={ai_meta.get('source_language') or '-'}")
-                if ai_category and (((not cached_category) or cached_category == "其他") or (ai_category != "其他")):
+                if ai_category and ai_category != "其他":
+                    if cached_category and cached_category != "其他" and cached_category != ai_category:
+                        log.append(f"[AI] override category for cached '{folder_name}' due to cache/AI conflict: {cached_category} -> {ai_category}")
                     cached_category = ai_category
-                if ai_region and (((not cached_region) or cached_region == "其他") or (ai_region != "其他")):
+                if ai_region and ai_region != "其他":
+                    if cached_region and cached_region != "其他" and cached_region != ai_region:
+                        log.append(f"[AI] override region for cached '{folder_name}' due to cache/AI conflict: {cached_region} -> {ai_region}")
                     cached_region = ai_region
                 v["category"] = cached_category
                 v["region"] = cached_region
-                v["media_type"] = ai_meta.get("media_type") or v.get("media_type")
-                v["source_language"] = ai_meta.get("source_language") or v.get("source_language")
+                for _field in ("media_type", "source_language"):
+                    _ai_value = ai_meta.get(_field)
+                    if _ai_value:
+                        _old_value = v.get(_field)
+                        if _old_value and _old_value != _ai_value:
+                            log.append(f"[AI] override {_field} for cached '{folder_name}' due to cache/AI conflict: {_old_value} -> {_ai_value}")
+                        v[_field] = _ai_value
                 if isinstance(ai_meta.get("keywords"), list):
+                    _old_keywords = v.get("keywords")
+                    if _old_keywords and _old_keywords != ai_meta.get("keywords"):
+                        log.append(f"[AI] override keywords for cached '{folder_name}' due to cache/AI conflict")
                     v["keywords"] = ai_meta.get("keywords")
                 v["ai_inferred"] = True
 
@@ -840,7 +940,7 @@ def resolve_series(
     if not pooled:
         log.append(f"[TMDB] no TMDB match for '{folder_name}' after queries={queries}")
         if ai:
-            ai_meta = ai_extract_media_meta(ai, folder_name, context=ctx) or {}
+            ai_meta = ai_extract_media_meta(ai, folder_name, context=ctx, allowed_mapping=allowed_category_region_map) or {}
             err = ai.consume_last_error()
             if err:
                 log.append(f"[AI] organize fallback failed '{folder_name}' -> kind={err.get('kind')} status={err.get('status_code') or '-'} retryable={err.get('retryable')} msg={err.get('message')}")
@@ -906,8 +1006,16 @@ def resolve_series(
     best_name = best.get("name") or best.get("original_name") or folder_name
     log.append(f"[TMDB] picked '{folder_name}' -> {best_name} (id={best.get('id')}, score={best_score:.4f})")
 
-    # If confidence low or top2 too close, let AI pick (with extra hints)
-    if ai and (best_score < 0.72 or (len(scored) >= 2 and (scored[0][0] - scored[1][0]) < 0.03)):
+    # If confidence low / title ambiguous / top2 too close, let AI pick (with extra hints)
+    ambiguous_short_title = len(primary_query or queries[0]) <= 4
+    top_gap = (scored[0][0] - scored[1][0]) if len(scored) >= 2 else None
+    multiple_candidates = len(scored) >= 2
+    if ai and (
+        best_score < 0.78
+        or (top_gap is not None and top_gap < 0.05)
+        or (ambiguous_short_title and multiple_candidates)
+        or (year_hint and multiple_candidates)
+    ):
         ai_ctx = dict(ctx)
         if year_hint:
             ai_ctx["year_hint"] = year_hint
@@ -915,9 +1023,10 @@ def resolve_series(
             ai_ctx["english_title"] = english_title
         picked = ai_choose_tmdb(ai, folder_name, primary_query or queries[0], [x[1] for x in scored], context=ai_ctx)
         if picked:
-            for _, c in scored:
+            for score_i, c in scored:
                 if int(c.get("id")) == int(picked):
                     best = c
+                    best_score = score_i
                     log.append(f"[AI] chose TMDB id {picked} for: {folder_name}")
                     break
 
@@ -929,25 +1038,58 @@ def resolve_series(
     if isinstance(first_air, str) and len(first_air) >= 4 and first_air[:4].isdigit():
         year = int(first_air[:4])
 
-    category, region = infer_category_region_from_tmdb(details, DEFAULT_CATEGORY_REGION_MAP, title_hint=folder_name)
+    category, region = infer_category_region_from_tmdb(details, allowed_category_region_map, title_hint=folder_name)
     log.append(f"[TMDB] metadata '{folder_name}' -> genres={[g.get('name') for g in (details.get('genres') or []) if isinstance(g, dict)]} | origins={details.get('origin_country') or details.get('production_countries') or []} | mapped={category or '-'} / {region or '-'}")
-    tmdb_confident = bool(best_score >= 0.72)
+    tmdb_confident = bool(best_score >= 0.78)
     ai_meta = None
+    ai_media_type = None
+    ai_source_language = None
+    ai_keywords = None
     ai_category_retry = (not category) or category == "其他"
     ai_region_retry = (not region) or region == "其他"
-    if ai and (ai_category_retry or ai_region_retry or not tmdb_confident):
-        ai_meta = ai_extract_media_meta(ai, folder_name, context=ctx) or {}
+    ai_review_needed = (
+        ai_category_retry
+        or ai_region_retry
+        or not tmdb_confident
+        or (category == "剧集" and region in {None, "其他", "欧美", "英国", "美国"} and _looks_cjk(folder_name))
+    )
+    if ai and ai_review_needed:
+        ai_ctx = dict(ctx)
+        ai_ctx.update({
+            "tmdb_category": category,
+            "tmdb_region": region,
+            "tmdb_confident": tmdb_confident,
+            "tmdb_genres": [g.get("name") for g in (details.get("genres") or []) if isinstance(g, dict) and g.get("name")],
+            "tmdb_origins": details.get("origin_country") or details.get("production_countries") or [],
+            "tmdb_name": show_name,
+        })
+        ai_meta = ai_extract_media_meta(ai, folder_name, context=ai_ctx, allowed_mapping=allowed_category_region_map) or {}
         err = ai.consume_last_error()
         if err:
             log.append(f"[AI] assist failed '{folder_name}' -> kind={err.get('kind')} status={err.get('status_code') or '-'} retryable={err.get('retryable')} msg={err.get('message')}")
         if ai_meta:
             ai_category = ai_meta.get("category")
             ai_region = ai_meta.get("region")
-            log.append(f"[AI] assist '{folder_name}' -> category={ai_category or '-'} | region={ai_region or '-'} | media_type={ai_meta.get('media_type') or '-'} | source_language={ai_meta.get('source_language') or '-'}")
-            if ai_category and ((not category) or category == "其他") and ai_category != "其他":
-                category = ai_category
-            if ai_region and ((not region) or region == "其他") and ai_region != "其他":
-                region = ai_region
+            ai_media_type = ai_meta.get("media_type")
+            ai_source_language = ai_meta.get("source_language")
+            ai_keywords = ai_meta.get("keywords") if isinstance(ai_meta.get("keywords"), list) else None
+            log.append(f"[AI] assist '{folder_name}' -> category={ai_category or '-'} | region={ai_region or '-'} | media_type={ai_media_type or '-'} | source_language={ai_source_language or '-'}")
+            if ai_category and ai_category != "其他":
+                if category and category != "其他" and category != ai_category:
+                    log.append(f"[AI] override category for '{folder_name}' due to TMDB/AI conflict: {category} -> {ai_category}")
+                if (not category) or category == "其他" or (category != ai_category) or (not tmdb_confident):
+                    category = ai_category
+            if ai_region and ai_region != "其他":
+                if region and region != "其他" and region != ai_region:
+                    log.append(f"[AI] override region for '{folder_name}' due to TMDB/AI conflict: {region} -> {ai_region}")
+                if (
+                    (not region)
+                    or region == "其他"
+                    or (region != ai_region)
+                    or not tmdb_confident
+                    or (category == "剧集" and region in {"欧美", "英国", "美国"} and _looks_cjk(folder_name))
+                ):
+                    region = ai_region
             if not category and ai_category:
                 category = ai_category
             if not region and ai_region:
@@ -959,9 +1101,9 @@ def resolve_series(
         "year": year,
         "category": category,
         "region": region,
-        "media_type": (ai_meta or {}).get("media_type"),
-        "source_language": (ai_meta or {}).get("source_language"),
-        "keywords": (ai_meta or {}).get("keywords") if isinstance((ai_meta or {}).get("keywords"), list) else None,
+        "media_type": ai_media_type,
+        "source_language": ai_source_language,
+        "keywords": ai_keywords,
         "ai_inferred": bool(ai_meta),
         "tmdb_confident": tmdb_confident,
     }
@@ -973,9 +1115,9 @@ def resolve_series(
         season_hint=season_hint,
         category=category,
         region=region,
-        media_type=(ai_meta or {}).get("media_type"),
-        source_language=(ai_meta or {}).get("source_language"),
-        keywords=(ai_meta or {}).get("keywords") if isinstance((ai_meta or {}).get("keywords"), list) else None,
+        media_type=ai_media_type,
+        source_language=ai_source_language,
+        keywords=ai_keywords,
         ai_inferred=bool(ai_meta),
         tmdb_confident=tmdb_confident,
     )

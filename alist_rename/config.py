@@ -20,7 +20,8 @@ BOOL_FIELDS = {
     'auto_roots', 'dry_run', 'resume', 'insecure', 'no_ai',
     'organize_enabled', 'init_target_tree', 'scan_exclude_target',
     'ai_infer_season', 'protect_sxxeyy', 'log_web', 'cli_mode',
-    'move_individual', 'alist_refresh',
+    'move_individual', 'alist_refresh', 'delete_empty_source_dirs',
+    'skip_exact_duplicate_files',
 }
 DEFAULTS: Dict[str, Any] = {
     'alist_url': '', 'alist_token': '', 'alist_user': '', 'alist_pass': '', 'alist_otp': '',
@@ -35,6 +36,8 @@ DEFAULTS: Dict[str, Any] = {
     'organize_enabled': False, 'target_root': '', 'scan_exclude_target': True,
     'exclude_roots': [],
     'move_individual': True, 'on_conflict': 'suffix', 'alist_refresh': False,
+    'delete_empty_source_dirs': False,
+    'skip_exact_duplicate_files': True,
     'alist_sleep_read': 0.8, 'alist_sleep_write': 1.2, 'alist_retries': 5,
     'alist_retry_base': 0.8, 'alist_retry_max': 10.0,
     'category_buckets': ['电影', '剧集', '动漫', '纪录片', '综艺', '演唱会', '体育'],
@@ -60,12 +63,14 @@ def _to_list(value: Any) -> List[str]:
     if isinstance(value, list):
         items = value
     else:
-        items = str(value).replace('\r', '\n').split('\n')
+        items = str(value).replace('\r', '\n').replace('，', ',').split('\n')
     out: List[str] = []
     for item in items:
-        s = str(item).strip()
-        if s:
-            out.append(s)
+        parts = str(item).replace('，', ',').split(',')
+        for part in parts:
+            s = part.strip()
+            if s:
+                out.append(s)
     return out
 
 
@@ -358,4 +363,6 @@ class RuntimeConfigStore:
             argv.append('--no-rename-files')
         if c.get('fix_bare_sxxeyy', True):
             argv.append('--fix-bare-sxxeyy')
+        if not c.get('skip_exact_duplicate_files', True):
+            argv.append('--no-skip-exact-duplicate-files')
         return argv

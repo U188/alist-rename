@@ -6,6 +6,8 @@ from typing import List, Optional
 class DirEntry:
     name: str
     is_dir: bool
+    size: Optional[int] = None
+    hash_info: Optional[str] = None
 
 @dataclasses.dataclass
 class SeriesMeta:

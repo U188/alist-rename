@@ -7,9 +7,11 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
+import traceback
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -24,7 +26,7 @@ from alist_rename.clients.ai import AIClient
 from alist_rename.ops.state import UndoLogger, load_state, append_state
 from alist_rename.ops.undo import apply_undo
 from alist_rename.ops.filesystem import maybe_move_folder_to_dir
-from alist_rename.ops.cleanup import parse_csv_paths, should_skip_misc_folder
+from alist_rename.ops.cleanup import parse_csv_paths, remove_empty_source_dirs, remove_empty_target_root_dirs, should_skip_misc_folder
 from alist_rename.media.resolver import (
     ensure_organize_tree, parse_boolish, parse_category_region_map, pick_organized_destination,
 )
@@ -32,6 +34,20 @@ from alist_rename.scanner.discover import (
     discover_library_roots, find_top_anchor_root, pick_series_dirs, search_series_dirs,
 )
 from alist_rename.scanner.processor import process_series_folder
+
+_EXACT_SEASON_DIR_RE = re.compile(
+    r"(?ix)^\s*(?:"
+    r"S\d{1,2}"
+    r"|Season\s*\d{1,2}"
+    r"|第\s*[一二三四五六七八九十\d]+\s*季"
+    r"|\d{1,2}\s*季"
+    r")\s*$"
+)
+
+
+def is_exact_season_dir_name(name: str) -> bool:
+    """Return True only for pure season folders like S01/Season 1/第1季."""
+    return bool(_EXACT_SEASON_DIR_RE.match(str(name or "")))
 
 logger = logging.getLogger("embyrename")
 def _start_logui_if_needed(args, hub: LogHub):
@@ -141,6 +157,7 @@ def build_runtime_parser():
     ap.add_argument("--target-root", default="", help="AList target root for organized library mode")
     ap.add_argument("--exclude-roots", default="", help="Comma/Chinese-comma separated folder roots to exclude from scanning")
     ap.add_argument("--scan-exclude-target", action="store_true", help="Do not scan target root during organized library mode")
+    ap.add_argument("--no-skip-exact-duplicate-files", dest="skip_exact_duplicate_files", action="store_false", default=True, help="When moving same-name files, do not skip files that have the same size/hash as destination")
     ap.add_argument("--init-target-tree", action="store_true", help="Create category/region folders under target root before scanning")
     ap.add_argument("--category-buckets", default="电影,剧集,动漫,纪录片,综艺,演唱会,体育", help="Category buckets used by the web UI; accepted for config compatibility")
     ap.add_argument("--region-buckets", default="大陆,港台,欧美,日韩,其他", help="Region buckets used by the web UI; accepted for config compatibility")
@@ -241,7 +258,10 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
             if scan_exclude_target:
                 excluded_root_set.add(target_root)
             else:
-                if target_root not in roots:
+                if not roots:
+                    target_parts = [x for x in target_root.split("/") if x]
+                    roots = ["/" + target_parts[0]] if target_parts else ["/"]
+                elif target_root not in roots:
                     roots = roots + [target_root]
         roots = [r for r in roots if norm_path(r) not in excluded_root_set]
     elif excluded_root_set:
@@ -310,7 +330,86 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
             print(f"No matching series folder for keyword: {keyword}", file=sys.stderr)
             sys.exit(1)
     else:
-        def collect_series_dirs(start_path: str, max_depth: int = 4) -> List[str]:
+        organize_root_norm = norm_path(target_root or "") if organize_enabled and target_root else ""
+        def _bucket_names(value: Any) -> set:
+            if isinstance(value, (list, tuple, set)):
+                raw_items = value
+            else:
+                raw_items = parse_csv_paths(str(value or ""))
+            return {str(v).strip().strip('/') for v in raw_items if str(v).strip().strip('/')}
+
+        configured_category_names = _bucket_names(getattr(args, "category_buckets", ""))
+        mapped_category_names = {str(k).strip().strip('/') for k in (category_region_map or {}).keys() if str(k).strip().strip('/')}
+        category_names = configured_category_names or mapped_category_names
+        mapped_region_names = {str(v).strip().strip('/') for vals in (category_region_map or {}).values() for v in (vals or []) if str(v).strip().strip('/')}
+        configured_region_names = _bucket_names(getattr(args, "region_buckets", ""))
+        region_names = mapped_region_names or configured_region_names
+
+        def _cleanup_bucket_names(value: Any) -> List[str]:
+            if isinstance(value, (list, tuple, set)):
+                raw_items = value
+            else:
+                raw_items = parse_csv_paths(str(value or ""))
+            out: List[str] = []
+            for item in raw_items:
+                name = str(item or "").strip().strip('/')
+                if name and name not in out:
+                    out.append(name)
+            return out
+
+        protected_category_names = _cleanup_bucket_names(getattr(args, "category_buckets", ""))
+        if not protected_category_names:
+            protected_category_names = [
+                str(k or "").strip().strip('/')
+                for k in (category_region_map or {}).keys()
+                if str(k or "").strip().strip('/')
+            ]
+
+        def cleanup_target_root_empty_dirs_now(reason: str):
+            if not (organize_enabled and target_root):
+                return
+            try:
+                hub.emit("INFO", f"[EMPTY] target-root cleanup before {reason}: {target_root}")
+                remove_empty_target_root_dirs(
+                    client=client,
+                    target_root=target_root,
+                    protected_names=protected_category_names,
+                    hub=hub,
+                    dry_run=args.dry_run,
+                )
+            except Exception as e:
+                hub.emit("WARN", f"[EMPTY] target-root cleanup skipped: {e}")
+
+        def is_organize_container_path(path: str) -> bool:
+            """Skip configured organize-root/category/region container dirs.
+
+            When scan roots are auto-derived from the target root's parent (for
+            example target_root=/天翼/影视 -> scan root=/天翼), the target root
+            itself is only a library container, not a series folder.  Category
+            and region buckets below it are also containers; real series folders
+            under those buckets must still be traversed and collected so wrongly
+            classified items can be re-resolved and moved to the TMDB/AI-derived
+            destination.
+            """
+            path_norm = norm_path(path)
+            if not organize_root_norm:
+                return False
+            if path_norm == organize_root_norm:
+                return True
+            prefix = organize_root_norm.rstrip('/') + '/'
+            if not path_norm.startswith(prefix):
+                return False
+            rel = path_norm[len(prefix):].strip('/')
+            if not rel:
+                return True
+            parts = [p for p in rel.split('/') if p]
+            if len(parts) == 1:
+                return parts[0] in category_names
+            if len(parts) == 2:
+                return parts[0] in category_names and parts[1] in region_names
+            return False
+
+        def collect_series_dirs(start_path: str, max_depth: int = 6) -> List[str]:
             collected: List[str] = []
             queue: List[Tuple[str, int]] = [(norm_path(start_path), 0)]
             seen: set = set()
@@ -339,7 +438,12 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
                     full_norm = norm_path(full)
                     if full_norm in excluded_root_set or should_skip_misc_folder(name, args.skip_dir_regex):
                         continue
-                    if full_norm not in series_paths:
+                    is_container = is_organize_container_path(full_norm)
+                    if is_container:
+                        hub.emit('INFO', f"[SCAN] skip organize container: {full_norm}")
+                    elif is_exact_season_dir_name(name):
+                        hub.emit('INFO', f"[SCAN] skip season folder candidate: {full_norm}")
+                    elif full_norm not in series_paths:
                         series_paths.append(full_norm)
                     if depth < max_depth:
                         queue.append((full_norm, depth + 1))
@@ -349,6 +453,8 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
             if norm_path(r) in excluded_root_set:
                 hub.emit('INFO', f"[SCAN] skip excluded root: {r}")
                 continue
+            if organize_root_norm and norm_path(r) == organize_root_norm:
+                cleanup_target_root_empty_dirs_now("scan")
             before_count = len(series_paths)
             hub.emit('INFO', f"[SCAN] scanning root: {r}")
             collect_series_dirs(r)
@@ -384,12 +490,17 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
                 log.append("[STOP] apply stopped by user request")
                 break
         sp_norm = norm_path(series_path)
+        _sp_parent, _sp_name = os.path.split(sp_norm.rstrip('/'))
+        if is_exact_season_dir_name(_sp_name):
+            log.append(f"[SKIP] season folder is not a series candidate: {series_path}")
+            append_state(state_file, {"series_path": sp_norm, "status": "skipped_season_dir", "ts": now_ts()})
+            continue
         if sp_norm in done_set:
             log.append(f"[SKIP] resume already done: {series_path}")
             continue
         log.append(f"\n=== PROCESS: {series_path} ===")
         try:
-            final_series_path, meta = process_series_folder(
+            result = process_series_folder(
                 client=client,
                 tmdb=tmdb,
                 ai=ai,
@@ -408,6 +519,16 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
                 organize_root=(target_root or ""),
                 category_region_map=category_region_map,
             )
+            if not isinstance(result, tuple) or len(result) != 2:
+                log.append(f"[WARN] process returned invalid result for {series_path}: {result!r}; skip this item")
+                append_state(state_file, {"series_path": sp_norm, "status": "error", "error": f"invalid process result: {result!r}", "ts": now_ts()})
+                continue
+            final_series_path, meta = result
+            if hasattr(log, "hub") and getattr(getattr(log, "hub", None), "stop_requested", None):
+                if log.hub.stop_requested():
+                    log.append(f"[STOP] interrupted during series; not marking done: {series_path}")
+                    append_state(state_file, {"series_path": sp_norm, "status": "stopped", "ts": now_ts()})
+                    break
             if organize_enabled:
                 organize_root = target_root
                 if not organize_root:
@@ -431,8 +552,40 @@ def run_job(args, *, cfg_dir: Optional[str] = None, store: Optional[RuntimeConfi
                     final_series_path = maybe_move_folder_to_dir(client, final_series_path, dst_dir, args.dry_run, log, undo=undo_logger)
             append_state(state_file, {"series_path": norm_path(final_series_path), "status": "done", "ts": now_ts()})
         except Exception as ex:
-            log.append(f"[ERROR] {series_path}: {ex}")
+            tb = traceback.format_exc()
+            log.append(f"[ERROR] {series_path}: {ex}\n{tb}")
             append_state(state_file, {"series_path": sp_norm, "status": "error", "error": str(ex), "ts": now_ts()})
+
+    if organize_enabled and target_root:
+        try:
+            def _cleanup_bucket_names(value: Any) -> List[str]:
+                if isinstance(value, (list, tuple, set)):
+                    raw_items = value
+                else:
+                    raw_items = parse_csv_paths(str(value or ""))
+                out: List[str] = []
+                for item in raw_items:
+                    name = str(item or "").strip().strip('/')
+                    if name and name not in out:
+                        out.append(name)
+                return out
+
+            protected_category_names = _cleanup_bucket_names(getattr(args, "category_buckets", ""))
+            if not protected_category_names:
+                protected_category_names = [
+                    str(k or "").strip().strip('/')
+                    for k in (category_region_map or {}).keys()
+                    if str(k or "").strip().strip('/')
+                ]
+            remove_empty_target_root_dirs(
+                client=client,
+                target_root=target_root,
+                protected_names=protected_category_names,
+                hub=hub,
+                dry_run=args.dry_run,
+            )
+        except Exception as e:
+            hub.emit("WARN", f"[EMPTY] target-root cleanup skipped: {e}")
 
     hub.running = False
 
@@ -603,6 +756,13 @@ def run_webui():
     def _on_run(payload):
         cfg = store.save(payload or {})
         apply_runtime_config(cfg)
+        # A previous /api/stop leaves stop_event set.  Clear it before
+        # launching a new worker, otherwise the next run exits immediately
+        # with "[STOP] ... stopped by user request" after the scan phase.
+        try:
+            stop_event.clear()
+        except Exception:
+            pass
         scan_roots = list(cfg.get('scan_roots') or [])
         logger.info("[WEBUI] start requested dry_run=%s scan_roots=%s target_root=%s auto_discover=%s", bool(cfg.get('dry_run', True)), scan_roots, cfg.get('target_root') or '', bool(cfg.get('auto_discover')))
         hub.emit('INFO', '[WEBUI] config saved; task starting')

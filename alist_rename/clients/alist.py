@@ -1,4 +1,5 @@
 """AList API client."""
+import json
 import logging
 import time
 from time import sleep
@@ -182,7 +183,25 @@ class AlistClient:
                     total = 0
             logger.info("[ALIST] list_dir page path=%s page=%s content=%s total=%s accumulated=%s", path, page, len(content), total, len(out) + len(content))
             for it in content:
-                out.append(DirEntry(name=it.get("name", ""), is_dir=bool(it.get("is_dir"))))
+                size = it.get("size")
+                try:
+                    size = int(size) if size is not None else None
+                except Exception:
+                    size = None
+                hash_info = it.get("hash_info") or it.get("hashinfo") or it.get("hash") or it.get("sign") or None
+                if isinstance(hash_info, (dict, list)):
+                    try:
+                        hash_info = json.dumps(hash_info, ensure_ascii=False, sort_keys=True)
+                    except Exception:
+                        hash_info = str(hash_info)
+                elif hash_info is not None:
+                    hash_info = str(hash_info)
+                out.append(DirEntry(
+                    name=it.get("name", ""),
+                    is_dir=bool(it.get("is_dir")),
+                    size=size,
+                    hash_info=hash_info,
+                ))
             if not content:
                 break
             if total and len(out) >= total:

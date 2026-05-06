@@ -42,6 +42,18 @@ def unique_name_in_parent(client: 'AlistClient', parent: str, desired: str) -> s
             return cand
     return ""
 
+def _same_file_identity(a: DirEntry | None, b: DirEntry | None) -> bool:
+    """Best-effort exact duplicate check for same-name files."""
+    if not a or not b or a.is_dir or b.is_dir:
+        return False
+    if a.name != b.name:
+        return False
+    if a.size is not None and b.size is not None and a.size == b.size:
+        if a.hash_info and b.hash_info:
+            return a.hash_info == b.hash_info
+        return True
+    return False
+
 def related_sidecars(entries: List[DirEntry], video_name: str, season: int, episode: int) -> List[str]:
     vstem, _ = os.path.splitext(video_name)
     tokens = {
@@ -86,6 +98,34 @@ def ensure_dir(client: AlistClient, parent: str, name: str, dry_run: bool, log: 
     log.append(f"mkdir {target}")
     client.mkdir(target)
     return target
+
+def path_is_dir(client: AlistClient, path: str) -> bool:
+    """Return True only when an AList directory already exists.
+
+    This intentionally performs a read/list probe instead of creating anything.
+    It is used by move operations to avoid accidentally materializing guessed
+    organize destinations (for example many category/region folders).
+    """
+    path = norm_path(path)
+    if path in {"", "/"}:
+        return True
+    try:
+        client.list_dir(path, refresh=False)
+        return True
+    except Exception:
+        return False
+
+def ensure_path(client: AlistClient, path: str, dry_run: bool, log: List[str]) -> str:
+    """Ensure a possibly multi-level directory path exists."""
+    path = norm_path(path)
+    if path in {"", "/"}:
+        return path or "/"
+
+    parts = [p for p in path.strip("/").split("/") if p]
+    current = "/"
+    for part in parts:
+        current = ensure_dir(client, current, part, dry_run, log, assume_exists=dry_run)
+    return current
 
 def maybe_rename_path(client: AlistClient, full_path: str, new_name: str, dry_run: bool, log: List[str], dry_return_new: bool = True, undo: 'UndoLogger|None' = None) -> str:
     parent, old = split_path(full_path)
@@ -147,6 +187,18 @@ def maybe_move(client: AlistClient, src_dir: str, dst_dir: str, names: List[str]
         return
 
     if not move_individual:
+        try:
+            src_entries = client.list_dir(src_dir, refresh=False)
+            src_existing = {e.name for e in src_entries}
+        except Exception as ex:
+            log.append(f"[SKIP] move source directory not available: {src_dir} -> {dst_dir}: {ex}")
+            return
+        missing = [n for n in names if n not in src_existing]
+        if missing:
+            log.append(f"[SKIP] move source item missing: {src_dir} names={missing} -> {dst_dir}")
+        names = [n for n in names if n in src_existing]
+        if not names:
+            return
         log.append(f"move {names} : {src_dir} -> {dst_dir}")
         client.move(src_dir, dst_dir, names)
         if undo:
@@ -156,15 +208,35 @@ def maybe_move(client: AlistClient, src_dir: str, dst_dir: str, names: List[str]
     # individual moves with conflict resolution
     try:
         dst_entries = client.list_dir(dst_dir, refresh=False)
-        dst_existing = {e.name for e in dst_entries}
+        dst_by_name = {e.name: e for e in dst_entries}
+        dst_existing = set(dst_by_name)
     except Exception:
+        dst_by_name = {}
         dst_existing = set()
+
+    skip_exact_duplicate = bool(CURRENT_RUNTIME_CONFIG.get("skip_exact_duplicate_files", True))
+    try:
+        src_entries = client.list_dir(src_dir, refresh=False)
+        src_by_name = {e.name: e for e in src_entries}
+        src_list_available = True
+    except Exception as ex:
+        src_by_name = {}
+        src_list_available = False
+        log.append(f"[SKIP] move source directory not available: {src_dir} -> {dst_dir}: {ex}")
 
     for name in list(names):
         if not name:
             continue
+        if not src_list_available:
+            continue
+        if name not in src_by_name:
+            log.append(f"[SKIP] move source item missing: {join_path(src_dir, name)} -> {dst_dir}")
+            continue
         final_name = name
         if final_name in dst_existing:
+            if skip_exact_duplicate and _same_file_identity(src_by_name.get(final_name), dst_by_name.get(final_name)):
+                log.append(f"[SKIP] exact duplicate already exists: {join_path(src_dir, final_name)} -> {join_path(dst_dir, final_name)}")
+                continue
             resolved = unique_name_in_parent(client, dst_dir, final_name)
             if not resolved:
                 log.append(f"[SKIP] move conflict: {join_path(src_dir, final_name)} -> {dst_dir}/{final_name}")
@@ -203,8 +275,39 @@ def maybe_move_folder_to_dir(
         return folder_path
 
     original_folder_path = folder_path
+    if not path_is_dir(client, dst_dir):
+        log.append(f"[SKIP] move target directory does not exist (create it first or run init organize tree): {folder_path} -> {dst_dir}")
+        return folder_path
 
-    # Resolve conflict at destination
+    # If destination already contains a folder with the same name, merge the
+    # source folder contents into that existing folder instead of creating
+    # "S01 (1)" / "Season (1)" duplicate directories.  File conflicts inside
+    # the folder are still handled by maybe_move(): exact duplicate files are
+    # skipped, same-name different files are renamed with suffix, different
+    # versions keep coexisting.
+    try:
+        dst_entries = client.list_dir(dst_dir, refresh=False)
+        dst_same = next((e for e in dst_entries if e.name == name), None)
+    except Exception:
+        dst_same = None
+    if dst_same and getattr(dst_same, "is_dir", False):
+        merge_dst = join_path(dst_dir, name)
+        try:
+            src_entries = client.list_dir(folder_path, refresh=False)
+        except Exception as ex:
+            log.append(f"[SKIP] merge folder failed to list source: {folder_path} -> {merge_dst}: {ex}")
+            return folder_path
+        child_names = [e.name for e in src_entries if e.name]
+        if not child_names:
+            log.append(f"[INFO] merge folder skipped empty source: {folder_path} -> {merge_dst}")
+        else:
+            log.append(f"[INFO] merge same-name folder: {folder_path} -> {merge_dst} ({len(child_names)} items)")
+            maybe_move(client, folder_path, merge_dst, child_names, dry_run, log, undo=undo)
+        from alist_rename.ops.cleanup import report_empty_dir
+        report_empty_dir(client, original_folder_path, getattr(log, "hub", None), dry_run=dry_run)
+        return merge_dst
+
+    # Resolve non-directory conflict at destination
     final_name = unique_name_in_parent(client, dst_dir, name)
     if final_name != name:
         renamed = maybe_rename_path(client, folder_path, final_name, dry_run, log, undo=undo)

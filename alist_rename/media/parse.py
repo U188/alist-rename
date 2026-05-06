@@ -236,6 +236,8 @@ def parse_episode_from_name(name: str) -> Tuple[Optional[int], Optional[int], bo
                 if not re.search(r"(?:19|20)\d{2}\s*$", prefix) and not re.search(r"(?:2160|1080|720|480)[pi]?\s*$", prefix, re.I):
                     return season_hint, e, False, " ".join(_quality_tokens(stem2))
 
+    return season_hint, None, False, " ".join(_quality_tokens(stem2))
+
 def is_special_episode_name(name: str) -> bool:
     n = to_halfwidth(name or "").lower()
     for m in _SPECIAL_MARKERS:

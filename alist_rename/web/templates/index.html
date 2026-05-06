@@ -1,92 +1,166 @@
-
 <!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EmbyRename 管理台</title>
+  <title>EmbyRename Neo Console Preview</title>
   <style>
-    :root{--bg:#eef2f7;--card:#fff;--muted:#64748b;--text:#0f172a;--line:#e2e8f0;--pri:#2563eb;--pri2:#7c3aed;--ok:#16a34a;--warn:#d97706;--err:#dc2626;--chip:#eef2ff;--soft:#f8fafc;--soft2:#eff6ff;--shadow:0 16px 40px rgba(15,23,42,.08)}
-    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;background:radial-gradient(900px 420px at 8% -5%, rgba(37,99,235,.18), transparent 62%),radial-gradient(720px 360px at 90% 0%, rgba(124,58,237,.13), transparent 58%),var(--bg);color:var(--text)}
-    header{position:sticky;top:0;z-index:20;background:rgba(248,250,252,.86);backdrop-filter:blur(16px);border-bottom:1px solid rgba(226,232,240,.88)}
-    .wrap{max-width:1480px;margin:0 auto;padding:14px 18px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
-    h1{font-size:20px;margin:0;letter-spacing:.2px}.muted{color:var(--muted)} .hidden{display:none!important}
-    .toolbar,.statusbar,.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid rgba(226,232,240,.9);border-radius:999px;background:rgba(255,255,255,.88);font-size:12px;color:var(--muted);box-shadow:0 4px 14px rgba(15,23,42,.03)}
-    .dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;box-shadow:0 0 0 3px rgba(148,163,184,.14)}.dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(22,163,74,.14)}.dot.err{background:var(--err);box-shadow:0 0 0 3px rgba(220,38,38,.14)}.dot.warn{background:var(--warn);box-shadow:0 0 0 3px rgba(217,119,6,.14)}
-    main{max-width:1480px;margin:0 auto;padding:18px;display:grid;grid-template-columns:minmax(720px,1.18fr) minmax(420px,.82fr);align-items:start;align-content:start;gap:18px}@media (max-width:1200px){main{grid-template-columns:1fr}}
-    .stack{display:grid;gap:18px;align-content:start}.side-stack{position:sticky;top:82px;max-height:calc(100vh - 96px);overflow:auto;padding-bottom:4px}@media (max-width:1200px){.side-stack{position:static;max-height:none;overflow:visible}}
-    .card{background:rgba(255,255,255,.94);border:1px solid rgba(226,232,240,.92);border-radius:22px;overflow:hidden;box-shadow:var(--shadow)}
-    .card h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font-size:14px;background:linear-gradient(180deg,#fff,#f8fafc)}.content{padding:16px}.hint{font-size:12px;color:var(--muted);line-height:1.55}
-    .content.logpanel{display:flex;flex-direction:column;min-height:0;height:min(72vh,820px);padding:0}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}@media (max-width:760px){.grid,.grid3{grid-template-columns:1fr}}
-    .field{display:grid;gap:7px}.field label{font-size:12px;color:#334155;font-weight:700}.field input,.field textarea,.field select,.filters input,.filters select{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;background:#fff;color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s,background .15s}
-    .field input:focus,.field textarea:focus,.field select:focus,.filters input:focus,.filters select:focus{border-color:#93c5fd;box-shadow:0 0 0 4px rgba(37,99,235,.09);background:#fff}
-    .field textarea{min-height:96px;resize:vertical}.field .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.checkrow{display:flex;gap:10px;flex-wrap:wrap}.check{display:flex;gap:8px;align-items:center;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 10px}
-    button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:8px 12px;border-radius:12px;font-size:13px;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s,background .12s}button:hover{border-color:#93c5fd;box-shadow:0 6px 16px rgba(37,99,235,.08);transform:translateY(-1px)}button.primary{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent;color:#fff}button.danger{background:rgba(220,38,38,.06);border-color:rgba(220,38,38,.28);color:var(--err)}button:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
-    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}} .stat{border:1px solid var(--line);border-radius:16px;padding:12px;background:linear-gradient(180deg,#fff,#f8fafc)}.stat .k{font-size:12px;color:var(--muted)}.stat .v{font-size:24px;margin-top:4px;font-weight:800;letter-spacing:-.03em}
-    .runtime{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media (max-width:760px){.runtime{grid-template-columns:1fr}} .kv{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff}.kv .k{font-size:12px;color:var(--muted)}.kv .v{margin-top:4px;font-size:12px;line-height:1.35;word-break:break-word}
-    .filters{display:grid;grid-template-columns:130px repeat(3,minmax(120px,1fr));gap:8px;padding:12px;border-bottom:1px solid var(--line);background:#f8fafc}.filters .filter-actions{grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap}@media (max-width:760px){.filters{grid-template-columns:1fr}}
-    .panel-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--line);background:#f8fafc}
-    .panel-tabs button.active{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.38);color:#1d4ed8;box-shadow:inset 0 0 0 1px rgba(37,99,235,.06)}
-    .configview{flex:1 1 auto;min-height:0;overflow:auto;padding:12px;background:#fff;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media (max-width:1200px){.configview{height:58vh;flex:none}}@media (max-width:760px){.configview{grid-template-columns:1fr}}
-    .configview pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--text)}
-    .configview .empty{color:var(--muted);font-size:13px;grid-column:1 / -1}
-    .logbox{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;padding:12px;overflow:hidden}@media (max-width:1200px){.logbox{height:58vh;flex:none}}
-    .loggroups{flex:1 1 auto;min-height:0;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:16px}
-    .loghint{padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);background:#fafafa}
-    .logline{display:grid;grid-template-columns:92px 56px minmax(0,1fr);gap:10px;align-items:start;padding:9px 12px;border-bottom:1px solid rgba(148,163,184,.10);font-size:12px}
-    .ts{color:var(--muted);font-variant-numeric:tabular-nums}.lvl{font-weight:700}.main{min-width:0}.msg{white-space:pre-wrap;word-break:break-word;line-height:1.55}.meta{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px 8px}.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#f8fafc;border:1px solid #e5e7eb;color:#475569}.chip b{font-weight:700;color:#334155}.path{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}.lv-info .lvl{color:var(--ok)}.lv-warn .lvl{color:var(--warn)}.lv-error .lvl{color:var(--err)}.lv-skip .lvl{color:#7c3aed}.lv-dry .lvl{color:#db2777}
-    .notice{padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px dashed #cbd5e1;font-size:12px;color:var(--muted)} .danger-text{color:var(--err)}
-    .hero{display:grid;gap:8px;padding:14px 16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(180deg, rgba(239,246,255,.95), rgba(248,250,252,.98))}
-    .hero-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.hero-title strong{font-size:15px}.hero-list{margin:0;padding-left:18px;color:#475569;font-size:12px;line-height:1.6}
-    .form-sections{display:grid;gap:12px;margin-top:12px}
-    .section-card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fff,#fcfdff)}
-    .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
-    .section-head strong{font-size:14px}.section-head .hint{max-width:720px}
-    .section-body{padding:14px}
-    .quicknav{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.quicknav a{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:#fff;border:1px solid #bfdbfe;color:#1d4ed8;text-decoration:none;font-size:12px;font-weight:700}.quicknav a:hover{background:#eff6ff}
-    .section-card{scroll-margin-top:92px;overflow:hidden}.section-card[id]{border-color:#dbeafe}.section-card[id] .section-head{position:relative}.section-card[id] .section-head:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--pri),var(--pri2))}
-    .inline-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .field-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}@media (max-width:760px){.field-row{grid-template-columns:1fr}}
-    .chips{display:flex;gap:8px;flex-wrap:wrap}
-    .tipbox{padding:10px 12px;border-radius:12px;background:var(--soft2);border:1px solid #bfdbfe;font-size:12px;color:#1e3a8a;line-height:1.6}
-    .actions-bar{position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-top:14px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(15,23,42,.06)}
-    .actions-bar .hint{margin:0}
-    .toast-host{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:1000;pointer-events:none;max-width:min(420px,calc(100vw - 32px))}
-    .toast{pointer-events:auto;border-radius:12px;padding:12px 14px;border:1px solid rgba(148,163,184,.26);background:rgba(15,23,42,.94);color:#e5eefb;box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}
-    .toast.show{opacity:1;transform:translateY(0)}
-    .toast.success{border-color:rgba(16,185,129,.38)} .toast.error{border-color:rgba(239,68,68,.45)} .toast.warn{border-color:rgba(245,158,11,.45)} .toast.info{border-color:rgba(96,165,250,.4)}
-    .toast .title{font-weight:700;margin-bottom:4px} .toast .msg{font-size:13px;line-height:1.45;word-break:break-word}
-    .toast .close{float:right;border:none;background:transparent;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 8px}
-    .btn-busy{position:relative;opacity:.78;cursor:progress} .btn-busy::after{content:'';width:12px;height:12px;border-radius:999px;border:2px solid rgba(255,255,255,.28);border-top-color:#fff;display:inline-block;margin-left:8px;vertical-align:-2px;animation:spin .8s linear infinite}
-    .confirm-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1100}
-    .confirm-dialog{width:min(460px,100%);background:#0f172a;border:1px solid rgba(148,163,184,.24);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.45);padding:18px;color:#e5eefb}
-    .confirm-dialog h3{margin:0 0 8px;font-size:18px} .confirm-dialog p{margin:0;color:#cbd5e1;line-height:1.6;white-space:pre-wrap}
-    .confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
-    @keyframes spin{to{transform:rotate(360deg)}}
+
+    :root{
+      --bg:#060816;--bg2:#0b1022;--panel:rgba(10,14,32,.82);--line:rgba(86,118,255,.24);
+      --text:#d9f6ff;--muted:#7ea0c7;--cyan:#52e0ff;--blue:#6b7cff;--violet:#a855f7;
+      --green:#39ff9c;--amber:#ffb84d;--red:#ff5f7a;--white:#f6fbff;
+      --shadow:0 0 0 1px rgba(82,224,255,.10),0 0 24px rgba(82,224,255,.10),0 0 60px rgba(107,124,255,.08);
+      --radius:18px;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0;color:var(--text);font-family:var(--sans);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(82,224,255,.12), transparent 50%),
+        radial-gradient(1000px 700px at 110% 10%, rgba(168,85,247,.14), transparent 45%),
+        linear-gradient(180deg, #04050d 0%, #060816 40%, #050713 100%);
+      overflow-x:hidden;
+    }
+    body::before{content:"";position:fixed;inset:0;background:linear-gradient(rgba(82,224,255,.045) 1px, transparent 1px),linear-gradient(90deg, rgba(82,224,255,.045) 1px, transparent 1px);background-size:100% 34px,34px 100%;mask-image:linear-gradient(to bottom, rgba(255,255,255,.22), rgba(255,255,255,.06));pointer-events:none}
+    body::after{content:"";position:fixed;inset:0;background:linear-gradient(180deg, transparent 0%, rgba(82,224,255,.03) 48%, transparent 50%, transparent 100%);background-size:100% 6px;opacity:.32;pointer-events:none;animation:scan 10s linear infinite}
+    @keyframes scan{from{transform:translateY(-10px)}to{transform:translateY(10px)}}
+    @keyframes glide{0%,75%,100%{transform:translateX(-100%)}35%{transform:translateX(100%)}}
+    @keyframes pulse{from{filter:brightness(.92)}to{filter:brightness(1.18)}}
+    .wrap{max-width:1600px;margin:0 auto;padding:24px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg, rgba(10,16,36,.88), rgba(8,12,28,.78));box-shadow:var(--shadow);backdrop-filter:blur(16px);position:sticky;top:14px;z-index:10}
+    .brand{display:flex;align-items:center;gap:16px}.logo{width:52px;height:52px;border-radius:16px;background:radial-gradient(circle at 30% 30%, rgba(82,224,255,.8), rgba(82,224,255,.08) 32%, transparent 34%), linear-gradient(135deg, rgba(82,224,255,.18), rgba(107,124,255,.12));border:1px solid rgba(82,224,255,.35);box-shadow:0 0 24px rgba(82,224,255,.25), inset 0 0 30px rgba(82,224,255,.08);position:relative}.logo::after{content:"";position:absolute;inset:10px;border:1px solid rgba(82,224,255,.35);border-radius:12px;clip-path:polygon(0 0,100% 0,100% 70%,70% 100%,0 100%)}
+    h1{margin:0;font-size:22px;letter-spacing:.08em}.subtitle{margin-top:6px;color:var(--muted);font-size:13px}
+    .badge-row,.action-row,.status-row,.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .chip,.btn,.mini-stat,.tab{border:1px solid var(--line);background:rgba(8,14,30,.82);border-radius:999px;color:var(--text);box-shadow: inset 0 0 18px rgba(82,224,255,.04)}
+    .chip,.mini-stat,.tab{padding:9px 12px;font:600 12px var(--mono);letter-spacing:.04em}
+    .btn{padding:10px 14px;font:700 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;cursor:default}
+    .btn.primary{border-color:rgba(82,224,255,.45);box-shadow:0 0 0 1px rgba(82,224,255,.12),0 0 20px rgba(82,224,255,.12), inset 0 0 18px rgba(82,224,255,.08)} .btn.warn{border-color:rgba(255,184,77,.38); color:#ffd8a8}.btn.ghost{color:#a7c0ea}.btn.danger{border-color:rgba(255,95,122,.3);color:#ffb3c1}
+    .chip .dot,.mini-stat .dot{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:8px;box-shadow:0 0 10px currentColor}
+    .ok{color:var(--green)} .warnc{color:var(--amber)} .errc{color:var(--red)} .cyanc{color:var(--cyan)}
+    .layout{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}.col{display:grid;gap:18px} @media (max-width:1240px){.layout{grid-template-columns:1fr}}
+    .panel{background:linear-gradient(180deg, rgba(9,14,31,.92), rgba(8,12,26,.82));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:relative}
+    .panel::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg, transparent 0%, rgba(82,224,255,.04) 35%, transparent 68%);transform:translateX(-100%);animation:glide 7s ease-in-out infinite;pointer-events:none}
+    .ph{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg, rgba(13,22,48,.92), rgba(9,14,31,.78))}.ph h2{margin:0;font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono)}.ph .hint{font:600 11px var(--mono); color:var(--muted)} .pc{padding:16px}
+    .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:16px} @media (max-width:980px){.hero{grid-template-columns:1fr}}
+    .hero-card{min-height:250px;padding:18px;border:1px solid rgba(82,224,255,.18);border-radius:18px;background:linear-gradient(180deg, rgba(6,12,28,.92), rgba(7,10,22,.86)), radial-gradient(circle at 15% 20%, rgba(82,224,255,.08), transparent 30%);position:relative;overflow:hidden}
+    .hero-card::after{content:"";position:absolute;right:-20px;top:-30px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(82,224,255,.18), transparent 68%);filter:blur(10px)}
+    .kicker{display:inline-flex;align-items:center;gap:8px;color:var(--cyan);border:1px solid rgba(82,224,255,.26);border-radius:999px;padding:6px 10px;font:700 11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+    .hero-title{margin:18px 0 10px;font-size:34px;line-height:1.08;letter-spacing:.04em;text-shadow:0 0 12px rgba(82,224,255,.18)}.hero-desc{color:#98b9de;max-width:66ch;line-height:1.7;font-size:14px}
+    .hero-bars{display:grid;gap:12px;margin-top:18px}.metric{display:grid;grid-template-columns:140px 1fr 70px;gap:12px;align-items:center;font:600 12px var(--mono)}.track{height:10px;border-radius:999px;overflow:hidden;background:rgba(148,163,184,.12);border:1px solid rgba(82,224,255,.12)}.fill{height:100%;background:linear-gradient(90deg, rgba(82,224,255,.9), rgba(107,124,255,.88), rgba(168,85,247,.86));box-shadow:0 0 18px rgba(82,224,255,.28);animation:pulse 1.4s ease-in-out infinite alternate}
+    .hero-side{display:grid;gap:14px}.stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stat{padding:16px;border-radius:16px;background:linear-gradient(180deg, rgba(8,14,31,.96), rgba(7,11,26,.9));border:1px solid rgba(82,224,255,.16);min-height:112px}.stat .label{font:600 11px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}.stat .value{margin-top:14px;font:800 28px var(--mono);color:#f1fbff}.stat .delta{margin-top:10px;font:600 12px var(--mono)}
+    .terminal{background:#04070f;border:1px solid rgba(82,224,255,.16);border-radius:16px;overflow:hidden}.term-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(82,224,255,.12);font:700 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#9ccfe8}.lights{display:flex;gap:8px}.lights i{width:9px;height:9px;border-radius:50%;display:block}.terminal pre{margin:0;padding:14px 16px 16px;min-height:180px;max-height:320px;overflow:auto;color:#c9f7ff;font:500 12px/1.75 var(--mono);white-space:pre-wrap}
+    .toolbar{margin-bottom:12px}.tab.active{border-color:rgba(82,224,255,.45);color:var(--cyan)}
+    .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px} @media (max-width:780px){.grid-2{grid-template-columns:1fr}}
+    .list{display:grid;gap:10px}.list-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(8,13,29,.72);border:1px solid rgba(82,224,255,.10)}.index{width:26px;height:26px;border-radius:10px;display:grid;place-items:center;font:700 12px var(--mono);color:var(--cyan);border:1px solid rgba(82,224,255,.22)}.list-row .name{font:700 13px var(--mono)} .list-row .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .timeline{position:relative;padding-left:18px;display:grid;gap:14px}.timeline::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:1px;background:linear-gradient(var(--cyan), rgba(82,224,255,.08));box-shadow:0 0 10px rgba(82,224,255,.22)}.tl{position:relative;padding:12px 14px 12px 18px;border-radius:14px;border:1px solid rgba(82,224,255,.12);background:rgba(8,13,29,.74)}.tl::before{content:"";position:absolute;left:-17px;top:17px;width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px rgba(82,224,255,.55)}.tl .t{font:700 12px var(--mono);color:#b7e7ff}.tl .d{margin-top:7px;font-size:13px;color:#9bbce0;line-height:1.65}
+    .cfg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px} @media (max-width:760px){.cfg{grid-template-columns:1fr}}
+    .field{padding:12px 13px;border-radius:14px;border:1px solid rgba(82,224,255,.12);background:rgba(6,11,26,.68)}.field label{display:block;margin-bottom:8px;font:700 11px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+    .field input,.field select,.field textarea,.fake-input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(82,224,255,.14);background:rgba(3,7,18,.72);color:#d9f6ff;font:500 13px var(--mono);outline:none}.field textarea{min-height:86px;resize:vertical}
+    .toggle-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px} @media (max-width:760px){.toggle-grid{grid-template-columns:1fr}}
+    .toggle{padding:11px 12px;border-radius:12px;background:rgba(6,11,26,.68);border:1px solid rgba(82,224,255,.12);display:flex;justify-content:space-between;gap:12px;align-items:center;font:600 12px var(--mono)}
+    .pill{padding:5px 10px;border-radius:999px;border:1px solid rgba(82,224,255,.18);font:700 11px var(--mono)}
+    .footer-note{margin-top:18px;color:var(--muted);font-size:12px;line-height:1.7}
+  
+
+/* === Compatibility layer: real WebUI DOM on neon preview visual system === */
+:root{--pri:var(--cyan);--pri2:var(--blue);--ok:var(--green);--warn:var(--amber);--err:var(--red);--muted2:var(--muted);--card:var(--panel)}
+button{border:1px solid var(--line);background:rgba(8,14,30,.82);border-radius:999px;color:var(--text);box-shadow: inset 0 0 18px rgba(82,224,255,.04);padding:10px 14px;font:700 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;cursor:pointer}button:hover:not(:disabled){border-color:rgba(82,224,255,.46);box-shadow:0 0 20px rgba(82,224,255,.13), inset 0 0 18px rgba(82,224,255,.07)}button:disabled{opacity:.45;cursor:not-allowed}.primary,button.primary{border-color:rgba(82,224,255,.45);color:#dffbff;box-shadow:0 0 0 1px rgba(82,224,255,.12),0 0 20px rgba(82,224,255,.12), inset 0 0 18px rgba(82,224,255,.08)}.danger,button.danger{border-color:rgba(255,95,122,.3);color:#ffb3c1}.hidden{display:none!important}.muted,.hint{color:var(--muted);font-size:12px;line-height:1.55}.stack{display:grid;gap:18px}.side-stack{align-content:start}.card{background:linear-gradient(180deg, rgba(9,14,31,.92), rgba(8,12,26,.82));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:relative}.card::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg, transparent 0%, rgba(82,224,255,.04) 35%, transparent 68%);transform:translateX(-100%);animation:glide 7s ease-in-out infinite;pointer-events:none}.card>h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg, rgba(13,22,48,.92), rgba(9,14,31,.78));font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono)}.content{padding:16px;position:relative}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media (max-width:760px){.grid{grid-template-columns:1fr}}.field{padding:12px 13px;border-radius:14px;border:1px solid rgba(82,224,255,.12);background:rgba(6,11,26,.68)}.field label{display:block;margin-bottom:8px;font:700 11px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}.field input,.field select,.field textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(82,224,255,.14);background:rgba(3,7,18,.72);color:#d9f6ff;font:500 13px var(--mono);outline:none}.field textarea{min-height:86px;resize:vertical}.mono{font-family:var(--mono)}.checkrow,.btns,.toolbar,.chips,.filter-actions,.panel-tabs{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.check{padding:10px 12px;border-radius:12px;background:rgba(6,11,26,.68);border:1px solid rgba(82,224,255,.12);font:600 12px var(--mono)}.notice{padding:11px 12px;border-radius:14px;background:rgba(9,16,34,.86);border:1px dashed rgba(82,224,255,.26);font-size:12px;color:#bcd1ff}.hero{display:grid;gap:10px;padding:16px 18px;border:1px solid rgba(82,224,255,.18);border-radius:18px;background:linear-gradient(135deg,rgba(14,26,48,.96),rgba(11,17,37,.92));box-shadow:var(--shadow)}.hero-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}.hero-list{margin:0;padding-left:18px;color:#bfd0f6;font-size:12px;line-height:1.7}.quicknav{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.quicknav a{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:rgba(8,14,30,.86);border:1px solid rgba(82,224,255,.28);color:#c9fbff;text-decoration:none;font-size:12px;font-weight:700}.form-sections{display:grid;gap:12px;margin-top:12px}.section-card{scroll-margin-top:92px;overflow:hidden;border:1px solid rgba(82,224,255,.16);border-radius:18px;background:linear-gradient(180deg,rgba(11,16,34,.96),rgba(8,12,26,.9));box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}.section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid rgba(82,224,255,.12);background:rgba(14,21,43,.82);position:relative}.section-head:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--cyan),var(--blue));box-shadow:0 0 14px rgba(82,224,255,.35)}.section-head strong{font-size:14px;color:#eff6ff}.section-body{padding:14px}.field-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}@media (max-width:760px){.field-row{grid-template-columns:1fr}}.actions-bar{position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-top:14px;border:1px solid rgba(82,224,255,.16);border-radius:18px;background:rgba(8,12,28,.9);backdrop-filter:blur(10px);box-shadow:0 16px 40px rgba(0,0,0,.32)}.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.stat{padding:16px;border-radius:16px;background:linear-gradient(180deg, rgba(8,14,31,.96), rgba(7,11,26,.9));border:1px solid rgba(82,224,255,.16);min-height:92px}.stat .k{font:600 11px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}.stat .v{margin-top:10px;font:800 28px var(--mono);color:#f1fbff}.runtime,.configview{display:grid;gap:10px}.kv{padding:12px 14px;border-radius:14px;background:rgba(8,13,29,.72);border:1px solid rgba(82,224,255,.10)}.kv .k{font:700 12px var(--mono);color:var(--muted);margin-bottom:6px}.kv .v{font-size:13px;line-height:1.55;word-break:break-word}.kv pre{margin:0;white-space:pre-wrap;font:500 12px/1.65 var(--mono);color:#c9f7ff}.logpanel{padding:0}.panel-tabs{padding:12px 14px;border-bottom:1px solid rgba(82,224,255,.12)}.panel-tabs button.active{border-color:rgba(82,224,255,.45);color:var(--cyan)}.filters{padding:12px 14px;border-bottom:1px solid rgba(82,224,255,.10);display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px}.filters input,.filters select{padding:10px 12px;border-radius:10px;border:1px solid rgba(82,224,255,.14);background:rgba(3,7,18,.72);color:#d9f6ff;font:500 12px var(--mono)}.filter-actions{grid-column:1/-1}.logbox{height:560px;overflow:auto;padding:12px;background:#04070f}.logline{display:grid;grid-template-columns:64px 60px minmax(0,1fr);gap:10px;padding:10px 12px;margin-bottom:8px;border-radius:14px;border:1px solid rgba(82,224,255,.12);background:rgba(8,13,29,.74);font:500 12px/1.55 var(--mono)}.logline .ts{color:#8fb9d8}.logline .lvl{font-weight:800}.logline .msg{color:#d9f6ff}.meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.meta .chip{border-radius:999px;padding:5px 8px;font-size:11px}.meta .chip b{color:var(--cyan);margin-right:5px}.path{word-break:break-all}.lv-info .lvl{color:var(--green)}.lv-warn .lvl{color:var(--amber)}.lv-error .lvl{color:var(--red)}.lv-skip .lvl{color:#c4b5fd}.lv-dry .lvl{color:#f9a8d4}.toast-host{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:1000;pointer-events:none;max-width:min(420px,calc(100vw - 32px))}.toast{pointer-events:auto;border-radius:14px;padding:12px 14px;border:1px solid rgba(82,224,255,.22);background:rgba(7,11,24,.96);color:#e5eefb;box-shadow:0 16px 36px rgba(0,0,0,.4),0 0 22px rgba(82,224,255,.06);opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}.toast.show{opacity:1;transform:translateY(0)}.toast.success{border-color:rgba(52,211,153,.36)}.toast.error{border-color:rgba(251,113,133,.36)}.toast.warn{border-color:rgba(251,191,36,.36)}.toast.info{border-color:rgba(96,165,250,.36)}.toast .close{float:right;border:none;background:transparent;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 8px}.btn-busy{opacity:.78;cursor:progress}.btn-busy::after{content:'';width:12px;height:12px;border-radius:999px;border:2px solid rgba(255,255,255,.22);border-top-color:#fff;display:inline-block;margin-left:8px;vertical-align:-2px;animation:spin .8s linear infinite}.confirm-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.68);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1100}.confirm-dialog{width:min(460px,100%);background:#0a1021;border:1px solid rgba(82,224,255,.18);border-radius:18px;box-shadow:0 24px 56px rgba(0,0,0,.5);padding:18px;color:#e5eefb}.confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.dot{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:8px;box-shadow:0 0 10px currentColor;color:#7ea0c7}.dot.ok{color:var(--green)}.dot.warn{color:var(--amber)}.dot.err{color:var(--red)}#configCard.dirty{border-color:rgba(255,184,77,.38);box-shadow:var(--shadow),0 0 32px rgba(255,184,77,.08)}
+
+  
+
+    /* visual upgrade bridge: keep WebUI contract, restore original neon cockpit feeling */
+    .neo-app .topbar{position:sticky;top:14px;z-index:20;backdrop-filter:blur(18px) saturate(135%)}
+    .neo-app .btn, .neo-app button{cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+    .neo-app .btn:hover, .neo-app button:hover{transform:translateY(-1px);box-shadow:0 0 22px rgba(82,224,255,.16)}
+    .neo-overview{border-color:rgba(82,224,255,.34)}
+    .neo-hero{grid-template-columns:1.12fr .88fr;align-items:stretch}
+    .neo-app .card{background:linear-gradient(180deg, rgba(9,14,31,.92), rgba(8,12,26,.82));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:relative}
+    .neo-app .card>h2,.neo-app .panel>h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font:800 13px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#e8fbff;background:rgba(5,9,22,.52)}
+    .neo-app .content{padding:16px}.neo-app .pc.content{padding:16px}
+    .neo-app .section-card{background:linear-gradient(180deg, rgba(8,13,29,.74), rgba(7,11,24,.66));border-color:rgba(82,224,255,.16)}
+    .neo-app input,.neo-app textarea,.neo-app select{background:rgba(2,6,16,.78);border:1px solid rgba(82,224,255,.22);color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.015)}
+    .neo-app input:focus,.neo-app textarea:focus,.neo-app select:focus{outline:none;border-color:rgba(82,224,255,.62);box-shadow:0 0 0 3px rgba(82,224,255,.10)}
+    .neo-app .actions-bar{position:sticky;bottom:14px;z-index:15;background:linear-gradient(180deg, rgba(9,14,31,.76), rgba(5,8,20,.94));backdrop-filter:blur(14px);border:1px solid rgba(82,224,255,.18);border-radius:18px;padding:12px;margin-top:16px}
+    .side-stack{align-content:start;position:sticky;top:112px;max-height:calc(100vh - 126px);overflow:auto;padding-right:2px}
+    .overview-runtime{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+    .overview-runtime .kv{background:rgba(4,8,20,.52);border:1px solid rgba(82,224,255,.12);border-radius:14px;padding:11px 12px}
+    .overview-runtime .k{font:700 10px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+    .overview-runtime .v{margin-top:7px;font:700 12px var(--mono);color:#dffbff;word-break:break-all}
+    .right-log-panel{height:calc(100vh - 126px);display:flex;flex-direction:column}
+    .right-log-panel .logpanel{flex:1;min-height:0;display:flex;flex-direction:column}
+    .right-log-panel #configView,.right-log-panel #logGroups{flex:1;min-height:0;overflow:auto}
+    .logpanel{min-height:440px}.logbox{background:#04070f;border:1px solid rgba(82,224,255,.16);border-radius:16px}
+    @media (max-width:1240px){.neo-hero{grid-template-columns:1fr}.side-stack{position:static;max-height:none}.right-log-panel{height:auto}}
+    @media (max-width:760px){.overview-runtime{grid-template-columns:1fr}}
+
   </style>
 </head>
 <body>
-<header>
-  <div class="wrap top">
+<div class="wrap neo-app">
+<header class="topbar">
+  <div class="brand">
+    <div class="logo"></div>
     <div>
-      <h1>EmbyRename 管理台</h1>
-      <div class="muted" id="topSubtitle">登录后可管理配置、启动/停止任务并查看日志</div>
-    </div>
-    <div class="toolbar">
-      <span class="pill"><span class="dot" id="dotConn"></span><span id="connText">连接中…</span></span>
-      <span class="pill"><span class="dot" id="dotAuth"></span><span id="authText">鉴权检查中…</span></span>
-      <span class="pill"><span class="dot" id="dotRun"></span><span id="runText">任务状态：未知</span></span>
-      <button id="btnLogout" class="hidden">登出</button>
-      <button id="btnRefresh">刷新</button>
+      <h1>EMBYRENAME // NEO CONSOLE</h1>
+      <div class="subtitle" id="topSubtitle">AList 媒体整理控制台 · 独立霓虹控制舰桥 · 完整替代旧 WebUI：配置 / AList 浏览 / 扫描 / 日志 / 运行维护</div>
     </div>
   </div>
+  <div class="status-row">
+    <span class="chip"><span class="dot" id="dotConn"></span><span id="connText">连接中…</span></span>
+    <span class="chip"><span class="dot" id="dotAuth"></span><span id="authText">鉴权检查中…</span></span>
+    <span class="chip"><span class="dot" id="dotRun"></span><span id="runText">任务状态：未知</span></span>
+    <span class="mini-stat">WEB <b id="miniEndpoint">...</b></span>
+    <span class="mini-stat">AUTH <b id="miniAuth">...</b></span>
+  </div>
+  <div class="action-row">
+    <button id="btnLogout" class="btn ghost hidden" type="button">登出</button>
+    <button type="button" id="btnSave" class="btn primary">保存</button>
+    <button type="button" id="btnSaveReload" class="btn">保存并重载</button>
+    <button type="button" id="btnStart" class="btn">启动</button>
+    <button type="button" id="btnStop" class="btn danger">停止</button>
+    <button id="btnRefresh" class="btn primary" type="button">刷新</button>
+  </div>
 </header>
-<main>
-  <section class="stack">
-    <div class="card" id="authCard">
+<main class="layout">
+  <section class="col">
+    <section class="panel neo-overview" id="overviewPanel">
+      <div class="ph"><h2>系统总览</h2><div class="hint">实时运行数据 / 配置驱动 / 无静态占位</div></div>
+      <div class="pc hero neo-hero">
+        <div class="hero-card">
+          <div class="kicker">AList Rename Control Surface</div>
+          <div class="hero-title">AList 媒体扫描与整理控制台</div>
+          <div class="hero-desc">配置、AList 目录浏览、自动发现扫描根、分类整理、dry-run、启动/停止、保存重载、实时日志与运行统计都保留；首屏改为驾驶舱式概览，下面仍是完整可编辑配置区。</div>
+          <div class="hero-bars">
+            <div class="metric"><span>扫描状态</span><div class="track"><div class="fill" id="barReady" style="width:0%"></div></div><span id="barReadyText">未连接</span></div>
+            <div class="metric"><span>重命名进度</span><div class="track"><div class="fill" id="barRename" style="width:0%"></div></div><span id="barRenameText">0</span></div>
+            <div class="metric"><span>移动进度</span><div class="track"><div class="fill" id="barMove" style="width:0%"></div></div><span id="barMoveText">0</span></div>
+          </div>
+          <div class="overview-runtime" aria-label="运行详情">
+            <div class="kv"><div class="k">状态</div><div class="v" id="rtStatus">未知</div></div>
+            <div class="kv"><div class="k">最近错误</div><div class="v" id="rtError">-</div></div>
+            <div class="kv"><div class="k">最近启动</div><div class="v" id="rtStarted">-</div></div>
+            <div class="kv"><div class="k">最近停止</div><div class="v" id="rtStopped">-</div></div>
+          </div>
+        </div>
+        <div class="hero-side">
+          <div class="stat-grid">
+            <div class="stat"><div class="label">运行状态</div><div class="value" id="dashStatus">...</div><div class="delta ok" id="dashStatusHint">等待后端</div></div>
+            <div class="stat"><div class="label">已重命名</div><div class="value" id="dashRen">0</div><div class="delta cyanc" id="dashRenHint">实时计数</div></div>
+            <div class="stat"><div class="label">已移动</div><div class="value" id="dashMov">0</div><div class="delta ok" id="dashMovHint">实时计数</div></div>
+            <div class="stat"><div class="label">错误</div><div class="value" id="dashErr">0</div><div class="delta warnc" id="dashErrHint">实时计数</div></div>
+          </div>
+          <div class="terminal">
+            <div class="term-head"><span>LIVE PIPELINE TELEMETRY</span><div class="lights"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i></div></div>
+            <pre id="dashTerminal">等待后端运行日志...</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="authCard">
       <h2 id="authCardTitle">管理员登录</h2>
       <div class="content">
         <div class="notice" id="authNotice">首次使用时，请设置管理员密码。</div>
@@ -100,9 +174,9 @@
           <button id="btnLogin" class="primary">登录 / 初始化密码</button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="card hidden" id="configCard">
+    <section class="panel hidden" id="configCard">
       <h2>配置</h2>
       <div class="content">
         <div class="hero">
@@ -223,6 +297,8 @@
                   <label class="check"><input type="checkbox" name="fix_bare_sxxeyy" /> 修复裸 SxxEyy</label>
                   <label class="check"><input type="checkbox" name="dry_run" /> 仅演练（dry-run）</label>
                   <label class="check"><input type="checkbox" name="no_ai" /> 禁用 AI</label>
+                  <label class="check"><input type="checkbox" name="delete_empty_source_dirs" /> 删除本轮变空的来源子目录</label>
+                  <label class="check"><input type="checkbox" name="skip_exact_duplicate_files" /> 跳过完全重复文件</label>
                 </div>
               </div>
             </section>
@@ -231,14 +307,15 @@
               <div class="section-head">
                 <div>
                   <strong>分类目录结构</strong>
-                  <div class="hint">用于生成整理后的一级分类、地区细分与映射关系。适合整理模式启用时配置。</div>
+                  <div class="hint">用于生成整理后的一级分类目录；只有配置了映射的分类，才会继续创建地区子目录。</div>
                 </div>
+                <button type="button" id="btnInitTree">创建分类文件夹</button>
               </div>
               <div class="section-body">
                 <div class="grid">
-                  <div class="field"><label>一级分类（每行一个）</label><textarea name="category_buckets" class="mono" placeholder="电影&#10;剧集&#10;动漫&#10;纪录片&#10;综艺&#10;演唱会&#10;体育"></textarea></div>
-                  <div class="field"><label>地区细分（每行一个）</label><textarea name="region_buckets" class="mono" placeholder="大陆&#10;港台&#10;欧美&#10;日韩&#10;其他"></textarea></div>
-                  <div class="field" style="grid-column:1 / -1"><label>分类→地区映射（每行一项，格式：分类:地区1,地区2）</label><textarea name="category_region_map" class="mono" placeholder="电影:大陆,港台,欧美,日韩,其他&#10;剧集:大陆,港台,欧美,日韩,其他&#10;动漫:大陆,港台,欧美,日韩,其他&#10;纪录片&#10;综艺&#10;演唱会&#10;体育"></textarea><div class="hint">不带冒号时表示该分类可存在但不细分地区。</div></div>
+                  <div class="field"><label>一级分类（每行一个）</label><textarea name="category_buckets" class="mono" placeholder="电影&#10;剧集&#10;动漫&#10;纪录片&#10;综艺&#10;演唱会&#10;体育"></textarea><div class="hint">这里只定义一级目录名称。</div></div>
+                  <div class="field"><label>地区候选（可选）</label><textarea name="region_buckets" class="mono" placeholder="大陆&#10;港台&#10;欧美&#10;日韩&#10;其他"></textarea><div class="hint">仅作填写映射时的参考，不直接决定建树结果。</div></div>
+                  <div class="field" style="grid-column:1 / -1"><label>分类→地区映射（每行一项，格式：分类:地区1,地区2）</label><textarea name="category_region_map" class="mono" placeholder="电影:大陆,港台,欧美,日韩,其他&#10;剧集:大陆,港台,欧美,日韩,其他&#10;动漫:大陆,港台,欧美,日韩,其他&#10;纪录片&#10;综艺&#10;演唱会&#10;体育"></textarea><div class="hint">只有写了映射的分类才会创建地区子目录；不带冒号或未出现在这里的分类，只创建一级目录。</div></div>
                 </div>
               </div>
             </section>
@@ -269,41 +346,17 @@
           </div>
 
           <div class="actions-bar">
-            <p class="hint">保存只会写入配置；“保存并重载”适合已运行任务；启动前建议先用 dry-run 验证。</p>
-            <div class="btns">
-              <button type="button" id="btnSave" class="primary">保存</button>
-              <button type="button" id="btnSaveReload">保存并重载</button>
-              <button type="button" id="btnStart">启动</button>
-              <button type="button" id="btnStop" class="danger">停止</button>
-            </div>
+            <p class="hint">保存只会写入配置；“保存并重载”适合已运行任务；启动前建议先用 dry-run 验证。操作按钮已移到顶部工具栏。</p>
           </div>
         </form>
       </div>
-    </div>
+    </section>
   </section>
 
-  <section class="stack side-stack">
-    <div class="card">
-      <h2>运行状态</h2>
-      <div class="content">
-        <div class="stats">
-          <div class="stat"><div class="k">已重命名</div><div class="v" id="stRen">0</div></div>
-          <div class="stat"><div class="k">已移动</div><div class="v" id="stMov">0</div></div>
-          <div class="stat"><div class="k">已跳过</div><div class="v" id="stSkip">0</div></div>
-          <div class="stat"><div class="k">错误</div><div class="v" id="stErr">0</div></div>
-        </div>
-        <div class="runtime" style="margin-top:12px">
-          <div class="kv"><div class="k">状态</div><div class="v" id="rtStatus">未知</div></div>
-          <div class="kv"><div class="k">最近错误</div><div class="v" id="rtError">-</div></div>
-          <div class="kv"><div class="k">最近启动</div><div class="v" id="rtStarted">-</div></div>
-          <div class="kv"><div class="k">最近停止</div><div class="v" id="rtStopped">-</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2 id="rightPanelTitle">配置 / 日志</h2>
-      <div class="content logpanel">
+  <aside class="col side-stack">
+    <section class="panel right-log-panel">
+      <div class="ph"><h2 id="rightPanelTitle">配置 / 日志</h2><div class="hint">CONFIG SNAPSHOT / LIVE LOG</div></div>
+      <div class="pc logpanel">
       <div class="panel-tabs">
         <button id="tabConfig" type="button" class="active">当前保存配置</button>
         <button id="tabLogs" type="button">实时日志</button>
@@ -323,9 +376,10 @@
       <div class="configview" id="configView"><div class="empty">正在读取当前保存的配置…</div></div>
       <div class="logbox loggroups hidden" id="logGroups"></div>
       </div>
-    </div>
-  </section>
+    </section>
+  </aside>
 </main>
+</div>
 <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 <script>
 (function(){
@@ -334,11 +388,10 @@
   const loginPassword = $('loginPassword'), btnLogin = $('btnLogin'), btnLogout = $('btnLogout'), btnRefresh = $('btnRefresh');
   const btnSave = $('btnSave'), btnSaveReload = $('btnSaveReload'), btnStart = $('btnStart'), btnStop = $('btnStop');
   const btnBrowseTarget = $('btnBrowseTarget'), btnTestAlist = $('btnTestAlist'), btnAlistUp = $('btnAlistUp'), btnAlistUseCurrent = $('btnAlistUseCurrent'), btnAlistClose = $('btnAlistClose');
-  const btnTestTmdb = $('btnTestTmdb');
+  const btnTestTmdb = $('btnTestTmdb'), btnInitTree = $('btnInitTree');
   const alistBrowser = $('alistBrowser'), alistCurrentPath = $('alistCurrentPath'), alistDirList = $('alistDirList');
   const dotConn = $('dotConn'), connText = $('connText'), dotAuth = $('dotAuth'), authText = $('authText'), dotRun = $('dotRun'), runText = $('runText');
   const rtStatus = $('rtStatus'), rtError = $('rtError'), rtStarted = $('rtStarted'), rtStopped = $('rtStopped');
-  const stRen = $('stRen'), stMov = $('stMov'), stSkip = $('stSkip'), stErr = $('stErr');
   const groupsEl = $('logGroups'), fLevel = $('fLevel'), fSeason = $('fSeason'), fShow = $('fShow'), fKeyword = $('fKeyword');
   const btnExpandAll = $('btnExpandAll'), btnCollapseAll = $('btnCollapseAll'), btnReset = $('btnReset'), btnClearLocal = $('btnClearLocal');
   const form = $('configForm');
@@ -355,10 +408,38 @@
 
   const textFields = ['alist_url','alist_user','tmdb_lang','ai_base_url','ai_model','keyword','season_format','state_file','undo_log','skip_dir_regex','discover_root_regex','log_host','public_host','target_root'];
   const numberFields = ['max_series','sleep','tmdb_sleep','ai_sleep','log_port','log_keep'];
-  const boolFields = ['auto_roots','rename_series','rename_files','fix_bare_sxxeyy','dry_run','resume','insecure','no_ai','organize_enabled','scan_exclude_target','init_target_tree'];
+  const boolFields = ['auto_roots','rename_series','rename_files','fix_bare_sxxeyy','dry_run','resume','insecure','no_ai','organize_enabled','scan_exclude_target','init_target_tree','delete_empty_source_dirs','skip_exact_duplicate_files'];
   const sensitiveFields = ['alist_token','alist_pass','alist_otp','tmdb_key','ai_api_key','readonly_token'];
   const listFields = ['roots','discover_categories','category_buckets','region_buckets'];
   const csvFields = ['discover_categories'];
+
+
+  function updateDashboard(){
+    const ren = Number((runtimeState && (runtimeState.renamed ?? runtimeState.rename_count ?? runtimeState.renamed_count)) || 0);
+    const mov = Number((runtimeState && (runtimeState.moved ?? runtimeState.move_count ?? runtimeState.moved_count)) || 0);
+    const skip = Number((runtimeState && (runtimeState.skipped ?? runtimeState.skip_count)) || 0);
+    const err = Number((runtimeState && (runtimeState.errors ?? runtimeState.error_count)) || 0);
+    const status = String((runtimeState && (runtimeState.status || runtimeState.state || runtimeState.running_state)) || '未连接').toUpperCase();
+    if($('dashStatus')) $('dashStatus').textContent = status;
+    if($('dashStatusHint')) $('dashStatusHint').textContent = status.includes('RUN') ? '运行中' : '待命 / 受控';
+    if($('dashRen')) $('dashRen').textContent = ren;
+    if($('dashMov')) $('dashMov').textContent = mov;
+    if($('dashErr')) $('dashErr').textContent = err;
+    if($('dashRenHint')) $('dashRenHint').textContent = '跳过 ' + skip;
+    if($('dashMovHint')) $('dashMovHint').textContent = err ? '请查看错误日志' : '移动计数';
+    if($('dashErrHint')) $('dashErrHint').textContent = err ? '有错误' : '无错误';
+    if($('barReady')) { const running = status.includes('RUN'); $('barReady').style.width = running ? '100%' : (status === '未连接' ? '0%' : '35%'); $('barReadyText').textContent = running ? '运行中' : status; }
+    if($('barRename')) { const w=Math.min(100, ren?Math.max(8, ren%101):0); $('barRename').style.width=w+'%'; $('barRenameText').textContent=ren; }
+    if($('barMove')) { const w=Math.min(100, mov?Math.max(8, mov%101):0); $('barMove').style.width=w+'%'; $('barMoveText').textContent=mov; }
+    if($('miniEndpoint')) $('miniEndpoint').textContent = location.host || '本地服务';
+    if($('miniAuth')) $('miniAuth').textContent = authState.authenticated ? 'ADMIN' : (authState.readonly ? 'READ' : (authState.initialized ? 'LOGIN' : 'INIT'));
+    if($('dashTerminal')){
+      const tail = events.slice(-6).map(e=>`[${e.level||'INFO'}] ${e.message||e.text||JSON.stringify(e).slice(0,120)}`).join('\n');
+      $('dashTerminal').textContent = tail || `runtime: ${status}
+counters: rename=${ren} move=${mov} skip=${skip} err=${err}
+等待实时日志...`;
+    }
+  }
 
   function setConn(ok){ dotConn.className = ok ? 'dot ok' : 'dot err'; connText.textContent = ok ? '已连接' : '连接失败'; }
   function setAuth(){
@@ -384,6 +465,8 @@
     rtError.textContent = rt.last_error || '-';
     rtStarted.textContent = rt.last_start_time || rt.started_at || '-';
     rtStopped.textContent = rt.last_stop_time || rt.stopped_at || '-';
+    if(btnStart) btnStart.disabled = !authState.authenticated || running;
+    if(btnStop) btnStop.disabled = !authState.authenticated || !running;
   }
   function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
   function getShow(ev){ return ev.show || '(未命名)'; }
@@ -405,7 +488,7 @@
       ['AList 地址', cfg.alist_url], ['AList 访问令牌', cfg.alist_token], ['AList 用户名', cfg.alist_user], ['AList 密码', cfg.alist_pass],
       ['AList OTP 验证码', cfg.alist_otp], ['TMDB 密钥', cfg.tmdb_key], ['TMDB 语言', cfg.tmdb_lang], ['AI 服务地址', cfg.ai_base_url],
       ['AI 接口密钥', cfg.ai_api_key], ['AI 模型', cfg.ai_model], ['关键字', cfg.keyword], ['季目录格式', cfg.season_format],
-      ['目标整理根目录', cfg.target_root], ['启用整理模式', cfg.organize_enabled], ['最大剧集数', cfg.max_series], ['扫描间隔（秒）', cfg.sleep], ['TMDB 请求间隔（秒）', cfg.tmdb_sleep],
+      ['目标整理根目录', cfg.target_root], ['启用整理模式', cfg.organize_enabled], ['删除空来源子目录', cfg.delete_empty_source_dirs], ['跳过完全重复文件', cfg.skip_exact_duplicate_files], ['最大剧集数', cfg.max_series], ['扫描间隔（秒）', cfg.sleep], ['TMDB 请求间隔（秒）', cfg.tmdb_sleep],
       ['AI 请求间隔（秒）', cfg.ai_sleep], ['日志监听地址', cfg.log_host], ['日志监听端口', cfg.log_port], ['日志保留条数', cfg.log_keep],
       ['状态文件路径', cfg.state_file], ['撤销日志路径', cfg.undo_log], ['跳过目录正则', cfg.skip_dir_regex], ['自动发现根目录正则', cfg.discover_root_regex],
       ['扫描根目录', cfg.roots], ['排除文件夹', cfg.exclude_roots], ['自动发现分类', cfg.discover_categories], ['一级分类', cfg.category_buckets], ['地区细分', cfg.region_buckets],
@@ -759,11 +842,17 @@
     }
   }
   async function refreshStats(){
-    try{ const js = await api('/api/stats'); stRen.textContent = js.rename || 0; stMov.textContent = js.move || 0; stSkip.textContent = js.skip || 0; stErr.textContent = js.error || 0; setConn(true); }
+    try{
+      const js = await api('/api/stats');
+      runtimeState = Object.assign({}, runtimeState, {renamed: js.rename || 0, moved: js.move || 0, skipped: js.skip || 0, errors: js.error || 0});
+      setConn(true);
+      updateDashboard();
+    }
     catch(e){
       setConn(!(e && (e.status >= 500)));
       if(e && (e.status === 401 || e.status === 403)){
-        stRen.textContent = '—'; stMov.textContent = '—'; stSkip.textContent = '—'; stErr.textContent = '—';
+        runtimeState = Object.assign({}, runtimeState, {renamed: 0, moved: 0, skipped: 0, errors: 0});
+        updateDashboard();
       }
     }
   }
@@ -773,6 +862,7 @@
   }
 
   async function saveConfig(){ const js = await api('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payloadFromForm(false))}); fillForm(js.config || {}); renderSavedConfig(js.config || {}); }
+  async function initOrganizeTree(){ return await api('/api/alist/init-organize-tree', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payloadFromForm(false))}); }
   async function saveAndReload(){ const payload = payloadFromForm(false); const saved = await api('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); renderSavedConfig(saved.config || {}); await api('/api/reload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})}); await refreshConfig(); await refreshRuntime(); }
   async function ensureSaved(message){
     if(!authState.authenticated || !formDirty) return true;
@@ -807,10 +897,25 @@
   btnRefresh.addEventListener('click', ()=>withBusy(btnRefresh, '刷新中...', async ()=>{ await refreshAuth().catch(()=>{}); if(authState.authenticated){ await refreshConfig().catch((e)=>toast('读取配置失败：'+e.message, 'error')); } await refreshRuntime(); await refreshStats(); await poll(); toast('页面数据已刷新', 'success'); }));
   btnSave.addEventListener('click', ()=>withBusy(btnSave, '保存中...', async ()=>{ try{ await saveConfig(); showRightPanel('config'); toast('配置已保存', 'success'); }catch(e){ toast('保存失败：'+e.message, 'error'); } }));
   btnSaveReload.addEventListener('click', ()=>withBusy(btnSaveReload, '保存并重载...', async ()=>{ try{ await saveAndReload(); showRightPanel('config'); toast('配置已保存并请求重载', 'success'); }catch(e){ toast('保存并重载失败：'+e.message, 'error'); } }));
-  btnStart.addEventListener('click', ()=>withBusy(btnStart, '启动中...', async ()=>{ if(!(await confirmAction('确认启动整理任务吗？', '启动任务'))) { toast('已取消启动', 'warn'); return; } try{ if(!(await ensureSaved('检测到配置已修改，是否先保存后再启动任务？'))) { toast('已取消启动', 'warn'); return; } showRightPanel('logs'); await startRun(); await poll(); toast('已请求启动', 'success'); }catch(e){ toast('启动失败：'+e.message, 'error'); } }));
-  btnStop.addEventListener('click', ()=>withBusy(btnStop, '停止中...', async ()=>{ if(!(await confirmAction('确认停止当前整理任务吗？', '停止任务'))) { toast('已取消停止', 'warn'); return; } try{ await stopRun(); toast('已请求停止', 'success'); }catch(e){ toast('停止失败：'+e.message, 'error'); } }));
+  btnStart.addEventListener('click', async ()=>{
+    if(!(await confirmAction('确认启动整理任务吗？', '启动任务'))) { toast('已取消启动', 'warn'); return; }
+    await withBusy(btnStart, '启动中...', async ()=>{
+      try{
+        if(!(await ensureSaved('检测到配置已修改，是否先保存后再启动任务？'))) { toast('已取消启动', 'warn'); return; }
+        showRightPanel('logs'); await startRun(); await poll(); toast('已请求启动', 'success');
+      }catch(e){ toast('启动失败：'+e.message, 'error'); }
+    });
+  });
+  btnStop.addEventListener('click', async ()=>{
+    if(!(await confirmAction('确认停止当前整理任务吗？', '停止任务'))) { toast('已取消停止', 'warn'); return; }
+    await withBusy(btnStop, '停止中...', async ()=>{
+      try{ await stopRun(); toast('已请求停止', 'success'); }
+      catch(e){ toast('停止失败：'+e.message, 'error'); }
+    });
+  });
   btnTestAlist.addEventListener('click', ()=>withBusy(btnTestAlist, '测试中...', async ()=>{ try{ if(!(await ensureSaved('检测到 AList 配置已修改，是否先保存后再测试连接？'))) { toast('已取消测试连接', 'warn'); return; } await testAlist(); }catch(e){ toast('AList 连接测试失败：' + e.message, 'error'); } }));
   btnTestTmdb.addEventListener('click', ()=>withBusy(btnTestTmdb, '验证中...', async ()=>{ try{ if(!(await ensureSaved('检测到 TMDB 配置已修改，是否先保存后再验证 Key？'))) { toast('已取消 TMDB 验证', 'warn'); return; } await testTmdb(); }catch(e){ toast('TMDB 验证失败：' + e.message, 'error'); } }));
+  btnInitTree.addEventListener('click', ()=>withBusy(btnInitTree, '创建中...', async ()=>{ try{ if(!(await ensureSaved('检测到目录结构配置已修改，是否先保存后再创建分类文件夹？'))) { toast('已取消创建', 'warn'); return; } const js = await initOrganizeTree(); const count = Array.isArray(js.created_paths) ? js.created_paths.length : 0; toast((js.message || '分类文件夹检查完成') + '（' + count + ' 项）', 'success'); }catch(e){ toast('创建分类文件夹失败：' + e.message, 'error'); } }));
   btnClearTmdbCache.addEventListener('click', ()=>withBusy(btnClearTmdbCache, '清理中...', async ()=>{ try{ if(!(await confirmAction('确认清空当前进程中的 TMDB 命中缓存吗？\n清空后下次识别会重新请求 TMDB / AI。', '清 TMDB 缓存'))) { toast('已取消清缓存', 'warn'); return; } const js = await api('/api/tmdb/cache/clear', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})}); toast(js.message || ('已清除 TMDB 缓存 ' + (js.cleared || 0) + ' 条'), 'success'); }catch(e){ toast('清 TMDB 缓存失败：' + e.message, 'error'); } }));
   btnBrowseTarget.addEventListener('click', ()=>withBusy(btnBrowseTarget, '读取中...', async ()=>{ try{ if(!(await ensureSaved('检测到 AList 或目标目录配置已修改，是否先保存后再浏览目录？'))) { toast('已取消目录浏览', 'warn'); return; } await browseAlist('/'); toast('目录读取完成', 'success'); }catch(e){ toast('AList 目录浏览失败：' + e.message, 'error'); } }));
   btnAlistUp.addEventListener('click', ()=>withBusy(btnAlistUp, '返回中...', async ()=>{ try{ if(!(await ensureSaved('检测到 AList 配置已修改，是否先保存后再读取上级目录？'))) { toast('已取消读取上级目录', 'warn'); return; } await browseAlist(btnAlistUp.dataset.parent || '/'); toast('已返回上级目录', 'success'); }catch(e){ toast('读取上级目录失败：' + e.message, 'error'); } }));

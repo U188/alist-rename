@@ -18,6 +18,7 @@ from runtime_config import hash_password, verify_password
 
 from alist_rename.clients.alist import AlistClient
 from alist_rename.clients.tmdb import TMDBClient
+from alist_rename.media.resolver import ensure_organize_tree, parse_category_region_map
 from alist_rename.web.hub import LogHub
 from alist_rename.web.templates import _INDEX_HTML
 
@@ -458,6 +459,86 @@ def make_handler(hub: LogHub, token: str) -> Type[BaseHTTPRequestHandler]:
                     self._send(200, _json_bytes({'ok': True, 'path': browse_path, 'parent': parent, 'dirs': dirs, 'token': fresh_token, 'token_refreshed': bool(used_login and fresh_token)}), 'application/json; charset=utf-8')
                 except Exception as ex:
                     logger.exception("[LOGUI] browse failed path=%s base=%s auth=%s elapsed=%.3fs", browse_path, str(cfg.get('alist_url') or ''), auth_mode, time.monotonic() - started)
+                    self._send(500, _json_bytes({'ok': False, 'error': str(ex) or ex.__class__.__name__}), 'application/json; charset=utf-8')
+                return
+            if self.path.startswith('/api/alist/init-organize-tree'):
+                if not self._admin_or_403():
+                    return
+                store = self._config_store()
+                payload = _read_json(self) or {}
+                cfg = dict(store.load()) if store else {}
+                merged = dict(cfg)
+                merged.update(payload)
+                for k in ('alist_url', 'alist_token', 'alist_user', 'alist_pass', 'alist_otp', 'target_root'):
+                    if k in payload and payload.get(k) not in (None, ''):
+                        merged[k] = payload.get(k)
+                raw_map = payload.get('category_region_map', merged.get('category_region_map'))
+                mapping = parse_category_region_map(raw_map)
+                raw_categories = payload.get('category_buckets', merged.get('category_buckets'))
+                categories: list[str] = []
+                if isinstance(raw_categories, list):
+                    categories = [str(x).strip() for x in raw_categories if str(x).strip()]
+                elif raw_categories not in (None, ''):
+                    categories = [s.strip() for s in str(raw_categories).replace('\r', '\n').split('\n') if s.strip()]
+                if not categories:
+                    categories = list(mapping.keys())
+                if not categories:
+                    self._send(400, _json_bytes({'ok': False, 'error': '请先配置一级分类或分类→地区映射'}), 'application/json; charset=utf-8')
+                    return
+                full_mapping = {cat: list(mapping.get(cat) or []) for cat in categories}
+                target_root = _norm_path(str(merged.get('target_root') or '/').strip() or '/')
+                if not target_root:
+                    self._send(400, _json_bytes({'ok': False, 'error': '请先配置整理根目录'}), 'application/json; charset=utf-8')
+                    return
+                try:
+                    AlistClient = _get_alist_client_cls()
+                    username = str(merged.get('alist_user') or '')
+                    password = str(merged.get('alist_pass') or '')
+                    otp_code = str(merged.get('alist_otp') or '')
+                    preferred_token = str(merged.get('alist_token') or '')
+                    used_login = False
+                    if username and password:
+                        client = AlistClient(
+                            base_url=str(merged.get('alist_url') or ''),
+                            token='',
+                            username=username,
+                            password=password,
+                            otp_code=otp_code,
+                        )
+                        client.login_if_needed()
+                        used_login = True
+                    else:
+                        client = AlistClient(
+                            base_url=str(merged.get('alist_url') or ''),
+                            token=preferred_token,
+                            username=username,
+                            password=password,
+                            otp_code=otp_code,
+                        )
+                        client.login_if_needed()
+                    fresh_token = str(getattr(client, 'token', '') or '')
+                    log: list[str] = []
+                    built = ensure_organize_tree(client, target_root, full_mapping, False, log)
+                    if used_login and fresh_token and store:
+                        save_payload = dict(cfg)
+                        save_payload['alist_token'] = fresh_token
+                        store.save(save_payload)
+                    created_paths = []
+                    for paths in built.values():
+                        created_paths.extend(paths or [])
+                    root_children = [f"{target_root.rstrip('/')}/{cat}" if target_root != '/' else f"/{cat}" for cat in categories]
+                    all_paths = root_children + created_paths
+                    self._send(200, _json_bytes({
+                        'ok': True,
+                        'message': f'目录检查完成，共处理 {len(all_paths)} 个分类/地区目录',
+                        'target_root': target_root,
+                        'created_paths': all_paths,
+                        'logs': log,
+                        'token': fresh_token,
+                        'token_refreshed': bool(used_login and fresh_token),
+                    }), 'application/json; charset=utf-8')
+                except Exception as ex:
+                    logger.exception('[LOGUI] init organize tree failed root=%s', target_root)
                     self._send(500, _json_bytes({'ok': False, 'error': str(ex) or ex.__class__.__name__}), 'application/json; charset=utf-8')
                 return
             if self.path.startswith('/api/start'):
