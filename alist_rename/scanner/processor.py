@@ -69,7 +69,8 @@ def process_series_folder(
         log.append(f"[ERROR] list_dir failed: {series_path} ({e})")
         return series_path, None
 
-    video_at_root = any((not e.is_dir and os.path.splitext(e.name)[1].lower() in VIDEO_EXTS) for e in root_entries_pre)
+    video_entries_at_root = [e for e in root_entries_pre if (not e.is_dir and os.path.splitext(e.name)[1].lower() in VIDEO_EXTS)]
+    video_at_root = bool(video_entries_at_root)
     season_dir_count = sum(1 for e in root_entries_pre if e.is_dir and parse_season_from_text(e.name) is not None)
     child_dirs = [
         e for e in root_entries_pre
@@ -77,6 +78,21 @@ def process_series_folder(
     ]
     show_like_child_dirs = [e for e in child_dirs if looks_like_show_folder_name(e.name)]
     container_words = re.search(r"(全系列|系列|合集|全套|全集|collection|franchise)", folder_name, re.I) is not None
+
+    # Movie libraries can contain ordinary movie folders under .../电影/<region>/<movie>.
+    # This processor is for episodic TV; if a movie folder is scanned as a series, TMDB/AI may
+    # resolve it to an unrelated show and then rename/move it (real case: Avatar -> "看电影").
+    # Still allow misplaced dramas in movie buckets (e.g. 黑洞) when filenames/dirs expose season
+    # or episode markers, so the re-classification workflow continues to work.
+    path_parts = [p for p in norm_path(series_path).split("/") if p]
+    in_movie_bucket = "电影" in path_parts
+    has_episode_marker_at_root = any(
+        parse_episode_from_name(e.name)[1] is not None or parse_season_from_text(e.name) is not None
+        for e in video_entries_at_root
+    )
+    if in_movie_bucket and video_at_root and season_dir_count == 0 and not has_episode_marker_at_root:
+        log.append(f"[SKIP] looks like movie folder, not episodic series: {series_path}")
+        return series_path, None
 
     def _dir_has_video_within(path: str, max_depth: int = 2) -> bool:
         """Cheap bounded probe for videos below a child show folder."""
