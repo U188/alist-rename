@@ -377,6 +377,11 @@
       font-weight: 700;
     }
 
+    .text-button[disabled] {
+      opacity: .62;
+      cursor: default;
+    }
+
     .searchbar .text-button,
     .searchbar .icon-button {
       border-top: 0;
@@ -901,6 +906,7 @@
 
       var CONFIG = {
         apiBase: "https://jdforrepam.com/api",
+        sourceBase: "https://catembylegacy.fastcdn.dpdns.org",
         sourceOrigin: "https://catembylegacy.fastcdn.dpdns.org/",
         signatureToken: "lpw6vgqzsp",
         signatureSalt: "71cf27bb3c0bcdf207b64abecddc970098c7421ee7203b9cdae54478478a199e7d5a6e1a57691123c1a931c057842fb73ba3b3c83bcd69c17ccf174081e3d8aa",
@@ -1244,6 +1250,37 @@
         return parsed.data || {};
       }
 
+      function siteJsonRequest(url) {
+        state.lastApiUrl = url;
+        state.lastApiError = "";
+        var headers = {
+          accept: "application/json",
+          referer: CONFIG.sourceOrigin,
+          "user-agent": "Mozilla/5.0"
+        };
+        var fm = nativeSdk();
+        if (fm && fm.req) {
+          return fm.req(url, {
+            method: "GET",
+            headers: headers,
+            responseType: "json",
+            timeout: 45,
+            credentials: "include"
+          }).then(function (res) {
+            if (!res || !res.ok) throw new Error(res && res.error ? res.error : "HTTP " + (res && res.status ? res.status : 0));
+            return typeof res.body === "string" ? JSON.parse(res.body) : res.body;
+          });
+        }
+        return fetch(url, {
+          method: "GET",
+          headers: { accept: "application/json" },
+          credentials: "include"
+        }).then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        });
+      }
+
       function isImageMagic(bytes, magic, offset) {
         var start = offset || 0;
         if (!bytes || bytes.length < start + magic.length) return false;
@@ -1530,9 +1567,10 @@
           actorNames.length ? '<p class="detail-meta">' + escapeHtml(actorNames.join(" · ")) + '</p>' : '',
           '<div class="tag-list">' + tagHtml.join("") + '</div>',
           '<div class="detail-actions">',
-          '<button class="text-button focusable" type="button" id="detailNativeSearch">原生搜索</button>',
+          movie.number ? '<button class="text-button focusable" type="button" id="detailFullVideo">完整视频</button>' : '',
           movie.previewVideoUrl ? '<button class="text-button focusable" type="button" id="detailPreview">播放预告</button>' : '',
           magnets && magnets.length ? '<button class="text-button focusable" type="button" id="detailFirstMagnet">播放磁链</button>' : '',
+          '<button class="text-button focusable" type="button" id="detailNativeSearch">原生搜索</button>',
           '</div>',
           movie.summary ? '<div class="detail-block"><h3>简介</h3><div class="detail-meta">' + escapeHtml(movie.summary) + '</div></div>' : '',
           '<div class="detail-block"><h3>样图</h3><div class="samples">' + (sampleHtml || '<div class="empty">暂无样图</div>') + '</div></div>',
@@ -1550,9 +1588,11 @@
 
       function bindDetailActions() {
         var nativeBtn = $("detailNativeSearch");
+        var fullBtn = $("detailFullVideo");
         var previewBtn = $("detailPreview");
         var magnetBtn = $("detailFirstMagnet");
         if (nativeBtn) nativeBtn.addEventListener("click", function () { nativeSearch(compactTitle(state.detailMovie)); });
+        if (fullBtn) fullBtn.addEventListener("click", function () { playFullVideo(state.detailMovie); });
         if (previewBtn) previewBtn.addEventListener("click", function () { playPreview(state.detailMovie); });
         if (magnetBtn) magnetBtn.addEventListener("click", function () { playMagnet(state.detailMagnets[0], state.detailMovie); });
         var rows = els.detailContent.querySelectorAll("[data-magnet-index]");
@@ -1590,6 +1630,113 @@
           return;
         }
         window.open(movie.previewVideoUrl, "_blank");
+      }
+
+      function fullVideoUrl(movie) {
+        var code = movie && movie.number ? movie.number : "";
+        var base = CONFIG.sourceBase.replace(/\/$/, "");
+        return base + "/api/v/resolve?code=" + encodeURIComponent(code) + "&lang=zh";
+      }
+
+      function variantUrl(item) {
+        return item && (item.sourceUrl || item.source_url || item.playUrl || item.url) ? (item.sourceUrl || item.source_url || item.playUrl || item.url) : "";
+      }
+
+      function isHttpUrl(url) {
+        return /^https?:\/\//i.test(url || "");
+      }
+
+      function isDataPlaylist(url) {
+        return /^data:application\/vnd\.apple\.mpegurl/i.test(url || "");
+      }
+
+      function fullVideoVariants(body) {
+        var variants = [];
+        if (body && body.variants) variants = body.variants;
+        else if (body && body.data && body.data.variants) variants = body.data.variants;
+        else if (body && body.result && body.result.variants) variants = body.result.variants;
+        return Array.isArray(variants) ? variants : [];
+      }
+
+      function scoreVariant(item) {
+        var url = variantUrl(item);
+        var type = text(item && item.sourceType).toLowerCase();
+        var variant = text(item && item.variant).toLowerCase();
+        var quality = text(item && item.quality).toLowerCase();
+        var score = 0;
+        if (isHttpUrl(url)) score += 60;
+        if (isDataPlaylist(url)) score += 20;
+        if (variant === "original") score += 50;
+        else if (variant.indexOf("original") >= 0) score += 38;
+        else if (variant.indexOf("reducing_mosaic") >= 0) score += 25;
+        if (type.indexOf("mp4") >= 0 || /\.mp4(\?|$)/i.test(url)) score += 12;
+        if (quality.indexOf("1080") >= 0) score += 8;
+        else if (quality.indexOf("720") >= 0 || quality.indexOf("hd") >= 0) score += 5;
+        return score;
+      }
+
+      function pickFullVideoVariant(variants) {
+        var best = null;
+        var bestScore = -1;
+        for (var i = 0; i < variants.length; i++) {
+          var item = variants[i] || {};
+          var url = variantUrl(item);
+          if (!isHttpUrl(url) && !isDataPlaylist(url)) continue;
+          var score = scoreVariant(item);
+          if (!best || score > bestScore) {
+            best = item;
+            bestScore = score;
+          }
+        }
+        return best;
+      }
+
+      function resolveFullVideo(movie) {
+        if (!movie || !movie.number) return Promise.reject(new Error("缺少番号"));
+        return siteJsonRequest(fullVideoUrl(movie)).then(function (body) {
+          var variants = fullVideoVariants(body);
+          var selected = pickFullVideoVariant(variants);
+          if (!selected) throw new Error("未找到完整视频源");
+          return selected;
+        });
+      }
+
+      function restoreFullButton(button, label) {
+        if (!button) return;
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.textContent = label;
+        if (state.isTv) focusTarget(button);
+      }
+
+      function playFullVideo(movie) {
+        var button = $("detailFullVideo");
+        var oldText = button ? button.textContent : "完整视频";
+        if (button) {
+          button.disabled = true;
+          button.setAttribute("aria-busy", "true");
+          button.textContent = "解析中";
+        }
+        els.detailStatus.textContent = "解析完整视频";
+        resolveFullVideo(movie).then(function (variant) {
+          var url = variantUrl(variant);
+          var label = variant && variant.label ? " · " + variant.label : "";
+          var title = variant && variant.title ? variant.title : compactTitle(movie) + label;
+          var headers = { Referer: variant && variant.pageUrl ? variant.pageUrl : CONFIG.sourceOrigin };
+          var fm = nativeSdk();
+          els.detailStatus.textContent = "打开完整视频";
+          restoreFullButton(button, oldText);
+          if (fm && fm.play) {
+            fm.play(url, title, { headers: headers }).catch(function () {
+              els.detailStatus.textContent = "播放失败";
+            });
+            return;
+          }
+          window.open(url, "_blank");
+        }).catch(function (err) {
+          restoreFullButton(button, oldText);
+          els.detailStatus.textContent = err && err.message ? err.message : "完整视频解析失败";
+        });
       }
 
       function playMagnet(item, movie) {
@@ -1730,16 +1877,40 @@
         if (best) focusTarget(best);
       }
 
-      function handleKeydown(event) {
+      function normalizeRemoteKey(event) {
         var key = event.key || "";
         var code = event.keyCode || 0;
-        if (!key && code) {
-          if (code === 37) key = "ArrowLeft";
-          else if (code === 38) key = "ArrowUp";
-          else if (code === 39) key = "ArrowRight";
-          else if (code === 40) key = "ArrowDown";
-          else if (code === 13) key = "Enter";
-          else if (code === 27 || code === 4 || code === 461) key = "Escape";
+        if (code === 37 || code === 21) return "ArrowLeft";
+        if (code === 38 || code === 19) return "ArrowUp";
+        if (code === 39 || code === 22) return "ArrowRight";
+        if (code === 40 || code === 20) return "ArrowDown";
+        if (code === 13 || code === 23 || code === 66) return "Enter";
+        if (code === 27 || code === 4 || code === 111 || code === 461) return "Escape";
+        if (key === "Esc" || key === "Back" || key === "GoBack" || key === "BrowserBack") return "Escape";
+        if (key === "OK" || key === "Select") return "Enter";
+        return key;
+      }
+
+      function activateFocused(event) {
+        var active = document.activeElement;
+        if (!active || !isFocusable(active)) return false;
+        if (active === els.searchInput) return false;
+        if (typeof active.click === "function") {
+          event.preventDefault();
+          active.click();
+          return true;
+        }
+        return false;
+      }
+
+      function handleKeydown(event) {
+        var key = normalizeRemoteKey(event);
+        var active = document.activeElement;
+        if (state.isTv && active === els.searchInput && !els.searchInput.hasAttribute("readonly") && key === "Escape") {
+          event.preventDefault();
+          els.searchInput.setAttribute("readonly", "readonly");
+          els.searchInput.focus();
+          return;
         }
         if (key === "Escape" || key === "Backspace" && state.isTv) {
           if (!els.detailSheet.hidden) {
@@ -1754,6 +1925,8 @@
           els.searchInput.focus();
           return;
         }
+        if (key === "Enter" && state.isTv && activateFocused(event)) return;
+        if (state.isTv && active === els.searchInput && !els.searchInput.hasAttribute("readonly")) return;
         if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(key) >= 0 && state.isTv) {
           event.preventDefault();
           moveFocus(key);
