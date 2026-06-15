@@ -397,6 +397,36 @@
       margin-bottom: 18px;
     }
 
+    .mode-toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .mode-toolbar .chip {
+      flex: 0 0 auto;
+    }
+
+    .filter-panel {
+      display: block;
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      margin-bottom: 8px;
+      padding-bottom: 2px;
+    }
+
+    .filter-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .filter-row .chip {
+      flex: 0 0 auto;
+    }
+
     .chip {
       margin: 0 8px 8px 0;
       padding: 0 13px;
@@ -508,20 +538,81 @@
 
     .movie-card:focus,
     .movie-card.focused,
+    .actor-card:focus,
+    .actor-card.focused,
     .chip:focus,
     .icon-button:focus,
     .text-button:focus,
     .magnet-row:focus,
-    .sample-button:focus {
+    .sample-button:focus,
+    .image-close:focus {
       outline: 2px solid rgba(255, 255, 255, .82);
       outline-offset: 2px;
       border-color: var(--line-strong);
     }
 
     .movie-card:focus,
-    .movie-card.focused {
+    .movie-card.focused,
+    .actor-card:focus,
+    .actor-card.focused {
       transform: translateY(-2px) scale(1.015);
       background: rgba(78, 88, 98, .66);
+    }
+
+    .actor-card {
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      color: inherit;
+      text-decoration: none;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      overflow: hidden;
+      transform: translateY(0);
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+      cursor: pointer;
+    }
+
+    .actor-avatar {
+      position: relative;
+      width: 100%;
+      background: rgba(255, 255, 255, .08);
+      overflow: hidden;
+    }
+
+    .actor-avatar:before {
+      content: "";
+      display: block;
+      padding-top: 115%;
+    }
+
+    .actor-avatar img,
+    .actor-fallback {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .actor-avatar img {
+      object-fit: cover;
+      display: block;
+    }
+
+    .actor-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 34px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, .06);
     }
 
     .poster {
@@ -683,10 +774,14 @@
     }
 
     .detail-poster {
+      display: block;
+      width: 100%;
+      padding: 0;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--panel-soft);
       overflow: hidden;
+      cursor: pointer;
     }
 
     .detail-info {
@@ -752,6 +847,28 @@
       padding-bottom: 4px;
     }
 
+    .related-strip {
+      display: flex;
+      overflow-x: auto;
+      padding: 2px 0 6px;
+    }
+
+    .related-card {
+      width: 132px;
+      min-width: 132px;
+      margin-right: 10px;
+    }
+
+    .related-card .card-body {
+      min-height: 70px;
+      padding: 9px;
+    }
+
+    .related-card .title,
+    .related-card .meta {
+      display: none;
+    }
+
     .sample-button {
       position: relative;
       width: 132px;
@@ -780,6 +897,51 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+
+    .image-viewer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      z-index: 90;
+      background: rgba(5, 7, 9, .94);
+      padding: calc(var(--safe-top) + 18px) calc(var(--safe-right) + 18px) calc(var(--safe-bottom) + 28px) calc(var(--safe-left) + 18px);
+    }
+
+    .image-viewer[hidden] {
+      display: none;
+    }
+
+    .image-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .image-close {
+      position: absolute;
+      right: 0;
+      top: 0;
+      z-index: 2;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, .58);
+      color: var(--text);
+      min-width: 46px;
+      min-height: 42px;
+      cursor: pointer;
+    }
+
+    .image-viewer img {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      max-width: 100%;
+      max-height: 100%;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
     }
 
     .magnet-row {
@@ -822,6 +984,7 @@
     }
 
     html.no-layout-gap .toolbar .chip,
+    html.no-layout-gap .filter-row .chip,
     html.no-layout-gap .detail-actions .text-button {
       margin-right: 8px;
       margin-bottom: 8px;
@@ -872,8 +1035,8 @@
         </form>
       </header>
 
-      <div class="toolbar" id="modeTabs" role="tablist" aria-label="内容分类"></div>
-      <div class="toolbar" id="filterTabs" role="tablist" aria-label="筛选"></div>
+      <div class="toolbar mode-toolbar" id="modeTabs" role="tablist" aria-label="内容分类"></div>
+      <div class="toolbar filter-panel" id="filterTabs" role="tablist" aria-label="筛选"></div>
 
       <section class="section">
         <div class="section-head">
@@ -900,6 +1063,13 @@
     </div>
   </div>
 
+  <div class="image-viewer" id="imageViewer" hidden>
+    <div class="image-inner">
+      <button class="image-close focusable" id="closeImageBtn" type="button" aria-label="关闭">×</button>
+      <img id="imageViewerImg" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="">
+    </div>
+  </div>
+
   <script>
     (function () {
       "use strict";
@@ -920,7 +1090,11 @@
         { value: "censored", label: "有码" },
         { value: "uncensored", label: "无码" },
         { value: "western", label: "欧美" },
-        { value: "fc2", label: "FC2" }
+        { value: "fc2", label: "FC2" },
+        { value: "actors", label: "演员" },
+        { value: "makers", label: "片商" },
+        { value: "directors", label: "导演" },
+        { value: "series", label: "系列" }
       ];
 
       var FILTERS = [
@@ -930,6 +1104,28 @@
         { value: "subtitle", label: "含字幕" }
       ];
 
+      var RANK_PERIODS = [
+        { value: "daily", label: "日榜" },
+        { value: "weekly", label: "周榜" },
+        { value: "monthly", label: "月榜" }
+      ];
+
+      var SEARCH_TYPES = [
+        { value: "movie", label: "影片" },
+        { value: "actor", label: "演员" },
+        { value: "maker", label: "片商" },
+        { value: "director", label: "导演" },
+        { value: "series", label: "系列" }
+      ];
+
+      var CATEGORY_SORTS = [
+        { value: "release", label: "最新" },
+        { value: "score", label: "评分" },
+        { value: "watched_count", label: "看过" },
+        { value: "want_watch_count", label: "想看" },
+        { value: "magnets_count", label: "磁链" }
+      ];
+
       var CATEGORY_TYPE = {
         censored: "0",
         uncensored: "1",
@@ -937,17 +1133,69 @@
         fc2: "3"
       };
 
+      var TYPE_OPTIONS = [
+        { value: "0", label: "有码" },
+        { value: "1", label: "无码" },
+        { value: "2", label: "欧美" },
+        { value: "3", label: "FC2" }
+      ];
+
+      var ENTITY_MODES = {
+        actors: { endpoint: "/v1/actors", key: "actors", label: "演员", code: "a" },
+        makers: { endpoint: "/v1/makers", key: "makers", label: "片商", code: "m" },
+        directors: { endpoint: "/v1/directors", key: "directors", label: "导演", code: "d" },
+        series: { endpoint: "/v1/series", key: "series", label: "系列", code: "s" }
+      };
+
+      var SEARCH_ENTITY_MODES = {
+        actor: "actors",
+        maker: "makers",
+        director: "directors",
+        series: "series"
+      };
+
+      var TAG_CATEGORY_LABELS = {
+        main: "基础",
+        year: "年份",
+        subject: "主题",
+        role: "角色",
+        cloth: "服装",
+        body: "体型",
+        behavior: "行为",
+        play_method: "玩法",
+        category: "类别",
+        duration: "时长",
+        place: "地点",
+        other: "其他",
+        tag: "标签"
+      };
+
       var state = {
         mode: "playback",
         filter: "all",
+        rankPeriod: "daily",
+        searchType: "movie",
+        categorySort: "release",
+        contentType: "0",
+        activeTagGroup: "",
+        activeTagId: "",
         page: 1,
         movies: [],
+        actors: [],
+        entities: [],
         currentQuery: "",
+        entityFilter: null,
+        tagGroupsByType: {},
+        tagGroupsLoadingType: "",
         loading: false,
         error: "",
         detailId: "",
         detailMovie: null,
         detailMagnets: [],
+        detailFullVariant: null,
+        detailFullResolving: false,
+        detailFullError: "",
+        detailResolveId: 0,
         sdkReady: false,
         isNative: false,
         isTv: false,
@@ -958,6 +1206,7 @@
 
       var els = {};
       var imageCache = {};
+      var decodedImageSrc = {};
       var lastFocus = null;
 
       function $(id) {
@@ -980,7 +1229,7 @@
 
       function formatDuration(value) {
         var number = Number(value);
-        if (!Number.isFinite(number) || number <= 0) return "-";
+        if (!isFinite(number) || number <= 0) return "-";
         return Math.round(number) + " 分钟";
       }
 
@@ -1019,7 +1268,45 @@
           publisherName: raw.publisher_name || "",
           seriesName: raw.series_name || "",
           tags: raw.tags || [],
-          actors: raw.actors || []
+          actors: raw.actors || [],
+          relativeMovies: raw.relative_movies || [],
+          actorMovies: raw.actor_movies || []
+        };
+      }
+
+      function displayActor(raw) {
+        raw = raw || {};
+        return {
+          id: raw.id || "",
+          type: raw.type == null ? "" : String(raw.type),
+          kind: "actors",
+          code: "a",
+          kindLabel: "演员",
+          name: raw.name_zht || raw.name || raw.other_name || raw.id || "",
+          originalName: raw.name || "",
+          otherName: raw.other_name || "",
+          avatar: raw.avatar_url || "",
+          videosCount: raw.videos_count || 0,
+          uncensored: !!raw.uncensored
+        };
+      }
+
+      function displayEntity(raw, mode) {
+        raw = raw || {};
+        var config = ENTITY_MODES[mode] || ENTITY_MODES.actors;
+        if (mode === "actors") return displayActor(raw);
+        return {
+          id: raw.id || "",
+          type: raw.type == null ? "" : String(raw.type),
+          kind: mode,
+          code: config.code,
+          kindLabel: config.label,
+          name: raw.name || raw.name_zht || raw.id || "",
+          originalName: raw.name_zht || "",
+          otherName: "",
+          avatar: raw.avatar_url || "",
+          videosCount: raw.videos_count || 0,
+          uncensored: false
         };
       }
 
@@ -1030,6 +1317,63 @@
         if (movie.magnetsCount > 0) badges.push({ label: "磁链" });
         if (movie.hasCnsub || movie.playSubtitle > 0) badges.push({ label: "中字" });
         return badges.slice(0, 4);
+      }
+
+      function rawPosterPic(movie) {
+        return movie && (movie.cover || movie.thumb) ? (movie.cover || movie.thumb) : "";
+      }
+
+      function rawWallPic(movie) {
+        var samples = movie && movie.previewImages ? movie.previewImages : [];
+        for (var i = 0; i < samples.length; i++) {
+          if (samples[i] && (samples[i].large_url || samples[i].thumb_url)) return samples[i].large_url || samples[i].thumb_url;
+        }
+        return rawPosterPic(movie);
+      }
+
+      function artworkSrc(url) {
+        return url && decodedImageSrc[url] ? decodedImageSrc[url] : url;
+      }
+
+      function posterPic(movie) {
+        return artworkSrc(rawPosterPic(movie));
+      }
+
+      function wallPic(movie) {
+        return artworkSrc(rawWallPic(movie));
+      }
+
+      function playbackOptions(movie, headers) {
+        var options = {};
+        var pic = posterPic(movie);
+        var wall = wallPic(movie);
+        if (headers) options.headers = headers;
+        if (pic) options.pic = pic;
+        if (wall) options.wallPic = wall;
+        return options;
+      }
+
+      function preloadArtwork(movie) {
+        var fm = nativeSdk();
+        if (!fm || !fm.preloadArtwork) return;
+        var pic = posterPic(movie);
+        var wall = wallPic(movie);
+        if (!pic && !wall) return;
+        fm.preloadArtwork(pic, wall).catch(function () {});
+      }
+
+      function prepareArtwork(movie) {
+        var urls = [];
+        var poster = rawPosterPic(movie);
+        var wall = rawWallPic(movie);
+        if (poster) urls.push(poster);
+        if (wall && wall !== poster) urls.push(wall);
+        if (!urls.length) return Promise.resolve();
+        return Promise.all(urls.map(function (url) { return decodeImage(url); })).then(function () {
+          preloadArtwork(movie);
+        }).catch(function () {
+          preloadArtwork(movie);
+        });
       }
 
       function padHex(value) {
@@ -1327,10 +1671,23 @@
         return { bytes: bytes, mime: "application/octet-stream" };
       }
 
+      function blobToImageSrc(blob) {
+        if (window.FileReader) {
+          return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function () { resolve(reader.result); };
+            reader.onerror = function () { reject(reader.error || new Error("image read failed")); };
+            reader.readAsDataURL(blob);
+          });
+        }
+        if (window.URL && URL.createObjectURL) return Promise.resolve(URL.createObjectURL(blob));
+        return Promise.resolve("");
+      }
+
       function decodeImage(url) {
         if (!url) return Promise.resolve(CONFIG.emptyGif);
         if (imageCache[url]) return imageCache[url];
-        if (!window.fetch || !window.Uint8Array || !window.Blob || !window.URL || !URL.createObjectURL) {
+        if (!window.fetch || !window.Uint8Array || !window.Blob || !window.Promise || (!window.FileReader && (!window.URL || !URL.createObjectURL))) {
           return Promise.resolve(url);
         }
         imageCache[url] = fetch(url, { method: "GET" }).then(function (res) {
@@ -1339,7 +1696,10 @@
         }).then(function (buffer) {
           var decoded = decodeBytes(new Uint8Array(buffer));
           var blob = new Blob([decoded.bytes.slice().buffer], { type: decoded.mime });
-          return URL.createObjectURL(blob);
+          return blobToImageSrc(blob).then(function (src) {
+            decodedImageSrc[url] = src || url;
+            return decodedImageSrc[url];
+          });
         }).catch(function () {
           delete imageCache[url];
           return url;
@@ -1370,15 +1730,147 @@
         if (message) setStatus(message);
       }
 
+      function isCategoryMode(mode) {
+        return Object.prototype.hasOwnProperty.call(CATEGORY_TYPE, mode);
+      }
+
+      function isEntityMode(mode) {
+        return Object.prototype.hasOwnProperty.call(ENTITY_MODES, mode);
+      }
+
+      function typeLabel(type) {
+        for (var i = 0; i < TYPE_OPTIONS.length; i++) {
+          if (TYPE_OPTIONS[i].value === String(type)) return TYPE_OPTIONS[i].label;
+        }
+        return "";
+      }
+
+      function searchTypeLabel(value) {
+        for (var i = 0; i < SEARCH_TYPES.length; i++) {
+          if (SEARCH_TYPES[i].value === value) return SEARCH_TYPES[i].label;
+        }
+        return "影片";
+      }
+
+      function searchEntityMode(value) {
+        return SEARCH_ENTITY_MODES[value] || "";
+      }
+
+      function currentCategoryType() {
+        if (isCategoryMode(state.mode)) return CATEGORY_TYPE[state.mode];
+        return state.contentType || "0";
+      }
+
+      function tagGroupLabel(group) {
+        if (!group) return "";
+        return TAG_CATEGORY_LABELS[group.category_id] || group.category || group.category_id || "";
+      }
+
+      function tagGroupsForType(type) {
+        return state.tagGroupsByType[String(type)] || [];
+      }
+
+      function activeTagGroup(type) {
+        var groups = tagGroupsForType(type);
+        var i;
+        if (!groups.length) return null;
+        for (i = 0; i < groups.length; i++) {
+          if (groups[i].category_id === state.activeTagGroup) return groups[i];
+        }
+        return groups[0];
+      }
+
+      function activeTag(type) {
+        var group = activeTagGroup(type);
+        var tags = group && group.tags ? group.tags : [];
+        var i;
+        for (i = 0; i < tags.length; i++) {
+          if (String(tags[i].id) === String(state.activeTagId)) {
+            return {
+              id: String(tags[i].id),
+              name: tags[i].name || String(tags[i].id),
+              categoryId: group.category_id || ""
+            };
+          }
+        }
+        return null;
+      }
+
+      function ensureTagGroups(type) {
+        type = String(type || "0");
+        if (state.tagGroupsByType[type]) return Promise.resolve(state.tagGroupsByType[type]);
+        state.tagGroupsLoadingType = type;
+        return apiRequest("/v1/tags", { type: type }).then(function (data) {
+          var groups = data.tags || [];
+          state.tagGroupsByType[type] = groups;
+          if (!state.activeTagGroup && groups.length) state.activeTagGroup = groups[0].category_id || "";
+          return groups;
+        }).catch(function (err) {
+          state.tagGroupsByType[type] = [];
+          throw err;
+        });
+      }
+
+      function chipRow(html) {
+        if (!html) return "";
+        return '<div class="filter-row">' + html + '</div>';
+      }
+
       function renderTabs() {
         els.modeTabs.innerHTML = MODES.map(function (item) {
-          return '<button type="button" class="chip focusable' + (state.mode === item.value ? ' active' : '') + '" data-mode="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          var active = !state.currentQuery && !state.entityFilter && state.mode === item.value;
+          return '<button type="button" class="chip focusable' + (active ? ' active' : '') + '" data-mode="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
         }).join("");
-        var showFilters = state.mode === "latest";
-        els.filterTabs.style.display = showFilters ? "flex" : "none";
-        els.filterTabs.innerHTML = FILTERS.map(function (item) {
-          return '<button type="button" class="chip focusable' + (state.filter === item.value ? ' active' : '') + '" data-filter="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
-        }).join("");
+        var rows = [];
+        var tabs = [];
+        var type = currentCategoryType();
+        var groups;
+        var group;
+        if (state.currentQuery) {
+          tabs = SEARCH_TYPES.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.searchType === item.value ? ' active' : '') + '" data-search-type="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          });
+          rows.push(chipRow(tabs.join("")));
+        } else if (state.entityFilter) {
+          rows.push(chipRow('<button type="button" class="chip focusable active" data-clear-entity="1">' + escapeHtml(state.entityFilter.label + "：" + state.entityFilter.name) + ' ×</button>'));
+          rows.push(chipRow(CATEGORY_SORTS.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.categorySort === item.value ? ' active' : '') + '" data-category-sort="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          }).join("")));
+        } else if (state.mode === "playback") {
+          tabs = RANK_PERIODS.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.rankPeriod === item.value ? ' active' : '') + '" data-period="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          });
+          rows.push(chipRow(tabs.join("")));
+        } else if (state.mode === "latest") {
+          tabs = FILTERS.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.filter === item.value ? ' active' : '') + '" data-filter="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          });
+          rows.push(chipRow(tabs.join("")));
+        } else if (isCategoryMode(state.mode)) {
+          rows.push(chipRow(CATEGORY_SORTS.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.categorySort === item.value ? ' active' : '') + '" data-category-sort="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          }).join("")));
+          groups = tagGroupsForType(type);
+          if (groups.length) {
+            rows.push(chipRow(groups.map(function (item, index) {
+              var id = item.category_id || "";
+              var active = state.activeTagGroup ? state.activeTagGroup === id : index === 0;
+              return '<button type="button" class="chip focusable' + (active ? ' active' : '') + '" data-tag-group="' + escapeHtml(id) + '">' + escapeHtml(tagGroupLabel(item)) + '</button>';
+            }).join("")));
+            group = activeTagGroup(type);
+            tabs.push('<button type="button" class="chip focusable' + (!state.activeTagId ? ' active' : '') + '" data-tag-id="">全部</button>');
+            Array.prototype.forEach.call(group && group.tags ? group.tags : [], function (item) {
+              tabs.push('<button type="button" class="chip focusable' + (String(state.activeTagId) === String(item.id) ? ' active' : '') + '" data-tag-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.name || item.id) + '</button>');
+            });
+            rows.push(chipRow(tabs.join("")));
+          }
+        } else if (isEntityMode(state.mode)) {
+          rows.push(chipRow(TYPE_OPTIONS.map(function (item) {
+            return '<button type="button" class="chip focusable' + (state.contentType === item.value ? ' active' : '') + '" data-content-type="' + escapeHtml(item.value) + '">' + escapeHtml(item.label) + '</button>';
+          }).join("")));
+        }
+        els.filterTabs.style.display = rows.length ? "block" : "none";
+        els.filterTabs.innerHTML = rows.join("");
       }
 
       function cardHtml(movie, index, source) {
@@ -1387,8 +1879,9 @@
         }).join("");
         var score = movie.score ? " · " + movie.score.toFixed(2) + " 分" : "";
         var watched = movie.watchedCount ? " · " + movie.watchedCount + " 看过" : "";
+        var cardClass = source === "related" ? "card related-card" : "card";
         return [
-          '<div class="card">',
+          '<div class="' + cardClass + '">',
           '<a href="#movie-' + escapeHtml(movie.id) + '" class="movie-card focusable" data-id="' + escapeHtml(movie.id) + '" data-source="' + escapeHtml(source || "list") + '" data-card-index="' + index + '">',
           '<div class="poster">',
           '<img src="' + CONFIG.emptyGif + '" data-encoded-src="' + escapeHtml(movie.thumb || movie.cover) + '" alt="' + escapeHtml(compactTitle(movie)) + '">',
@@ -1402,6 +1895,34 @@
           '</a>',
           '</div>'
         ].join("");
+      }
+
+      function entityCardHtml(entity, index) {
+        var avatar = entity.avatar ? '<img src="' + CONFIG.emptyGif + '" data-encoded-src="' + escapeHtml(entity.avatar) + '" alt="' + escapeHtml(entity.name) + '">' : '<div class="actor-fallback">' + escapeHtml((entity.name || "?").charAt(0)) + '</div>';
+        var meta = entity.videosCount ? entity.videosCount + " 部作品" : entity.kindLabel;
+        if (entity.uncensored) meta += " · 无码";
+        return [
+          '<div class="card">',
+          '<button type="button" class="actor-card focusable" data-entity-kind="' + escapeHtml(entity.kind) + '" data-entity-code="' + escapeHtml(entity.code) + '" data-entity-id="' + escapeHtml(entity.id) + '" data-entity-name="' + escapeHtml(entity.name) + '" data-entity-type="' + escapeHtml(entity.type) + '" data-entity-label="' + escapeHtml(entity.kindLabel) + '" data-card-index="' + index + '">',
+          '<div class="actor-avatar">' + avatar + '</div>',
+          '<div class="card-body">',
+          '<div class="code">' + escapeHtml(entity.name) + '</div>',
+          entity.originalName && entity.originalName !== entity.name ? '<div class="title">' + escapeHtml(entity.originalName) + '</div>' : '',
+          '<div class="meta">' + escapeHtml(meta) + '</div>',
+          '</div>',
+          '</button>',
+          '</div>'
+        ].join("");
+      }
+
+      function relatedStripHtml(items, source) {
+        var movies = [];
+        var i;
+        for (i = 0; items && i < items.length; i++) movies.push(displayMovie(items[i]));
+        if (!movies.length) return "";
+        return '<div class="related-strip">' + movies.slice(0, 12).map(function (movie, index) {
+          return cardHtml(movie, index, source || "related");
+        }).join("") + '</div>';
       }
 
       function renderGrid() {
@@ -1419,6 +1940,28 @@
           els.grid.innerHTML = '<div class="error">' + escapeHtml(state.error) + '</div>';
           return;
         }
+        if (state.currentQuery && state.searchType !== "movie") {
+          if (!state.entities.length) {
+            els.grid.innerHTML = '<div class="empty">没有结果</div>';
+            return;
+          }
+          els.grid.innerHTML = state.entities.map(function (entity, index) {
+            return entityCardHtml(entity, index);
+          }).join("");
+          decodeImages(els.grid);
+          return;
+        }
+        if (isEntityMode(state.mode) && !state.entityFilter && !state.currentQuery) {
+          if (!state.entities.length) {
+            els.grid.innerHTML = '<div class="empty">没有结果</div>';
+            return;
+          }
+          els.grid.innerHTML = state.entities.map(function (entity, index) {
+            return entityCardHtml(entity, index);
+          }).join("");
+          decodeImages(els.grid);
+          return;
+        }
         if (!state.movies.length) {
           els.grid.innerHTML = '<div class="empty">没有结果</div>';
           return;
@@ -1430,7 +1973,8 @@
       }
 
       function titleForState() {
-        if (state.currentQuery) return "搜索：" + state.currentQuery;
+        if (state.currentQuery) return "搜" + searchTypeLabel(state.searchType) + "：" + state.currentQuery;
+        if (state.entityFilter) return state.entityFilter.label + "：" + state.entityFilter.name;
         if (state.mode === "playback") return "热播";
         if (state.mode === "latest") return "最新";
         if (state.mode === "recommend") return "推荐";
@@ -1438,48 +1982,86 @@
         if (state.mode === "uncensored") return "无码";
         if (state.mode === "western") return "欧美";
         if (state.mode === "fc2") return "FC2";
+        if (isEntityMode(state.mode)) return ENTITY_MODES[state.mode].label + " · " + typeLabel(state.contentType);
         return "影片";
       }
 
       function loadList() {
         var reqId = ++state.requestId;
         state.error = "";
+        state.movies = [];
+        state.actors = [];
+        state.entities = [];
         setLoading(true, "加载中");
         renderGrid();
-        var promise;
-        if (state.currentQuery) {
-          promise = apiRequest("/v2/search", {
-            q: state.currentQuery,
-            page: state.page,
-            type: "movie",
-            limit: 24
-          });
-        } else if (state.mode === "playback") {
-          promise = apiRequest("/v1/rankings/playback", {
-            filter_by: "all",
-            period: "daily"
-          });
-        } else if (state.mode === "recommend") {
-          promise = apiRequest("/v1/movies/recommend", {});
-        } else if (state.mode === "latest") {
-          promise = apiRequest("/v1/movies/latest", {
-            page: state.page,
-            filter_by: state.filter
-          });
-        } else {
-          promise = apiRequest("/v1/movies/tags", {
-            filter_by: categoryFilter(state.mode),
-            sort_by: "release",
-            order_by: "desc",
-            page: state.page,
-            limit: 24
-          });
-        }
-        promise.then(function (data) {
+        var setup = isCategoryMode(state.mode) && !state.currentQuery && !state.entityFilter ? ensureTagGroups(currentCategoryType()).catch(function () { return []; }) : Promise.resolve([]);
+        setup.then(function () {
+          var promise;
+          var entityMode;
+          renderGrid();
+          if (state.currentQuery) {
+            promise = apiRequest("/v2/search", {
+              q: state.currentQuery,
+              page: state.page,
+              type: state.searchType,
+              limit: 24
+            });
+          } else if (state.entityFilter) {
+            promise = apiRequest("/v1/movies/tags", {
+              filter_by: entityFilterValue(state.entityFilter),
+              sort_by: state.categorySort,
+              order_by: "desc",
+              page: state.page,
+              limit: 24
+            });
+          } else if (state.mode === "playback") {
+            promise = apiRequest("/v1/rankings/playback", {
+              filter_by: "all",
+              period: state.rankPeriod
+            });
+          } else if (state.mode === "recommend") {
+            promise = apiRequest("/v1/movies/recommend", {});
+          } else if (state.mode === "latest") {
+            promise = apiRequest("/v1/movies/latest", {
+              page: state.page,
+              filter_by: state.filter
+            });
+          } else if (isEntityMode(state.mode)) {
+            entityMode = ENTITY_MODES[state.mode];
+            promise = apiRequest(entityMode.endpoint, {
+              type: state.contentType,
+              page: state.page,
+              limit: 24
+            });
+          } else {
+            promise = apiRequest("/v1/movies/tags", {
+              filter_by: categoryFilter(state.mode),
+              sort_by: state.categorySort,
+              order_by: "desc",
+              page: state.page,
+              limit: 24
+            });
+          }
+          return promise;
+        }).then(function (data) {
           if (reqId !== state.requestId) return;
-          var raw = data.movies || [];
-          state.movies = raw.map(displayMovie);
-          setLoading(false, state.movies.length + " 条");
+          var raw;
+          var entityMode;
+          if (state.currentQuery && state.searchType !== "movie") {
+            entityMode = searchEntityMode(state.searchType);
+            raw = data[ENTITY_MODES[entityMode].key] || [];
+            state.entities = raw.map(function (item) { return displayEntity(item, entityMode); });
+            setLoading(false, state.entities.length + " 项");
+          } else if (isEntityMode(state.mode) && !state.entityFilter && !state.currentQuery) {
+            entityMode = ENTITY_MODES[state.mode];
+            raw = data[entityMode.key] || [];
+            state.entities = raw.map(function (item) { return displayEntity(item, state.mode); });
+            setLoading(false, state.entities.length + " 项");
+          } else {
+            raw = data.movies || [];
+            state.movies = raw.map(displayMovie);
+            setLoading(false, state.movies.length + " 条");
+          }
           renderGrid();
           focusAfterRender();
         }).catch(function (err) {
@@ -1493,12 +2075,22 @@
 
       function categoryFilter(mode) {
         var type = CATEGORY_TYPE[mode] || "0";
-        return type + ":t:::::";
+        var tag = activeTag(type);
+        if (!tag) return type + ":t:::::";
+        if (tag.categoryId === "main") return type + ":" + tag.id + ":::::";
+        return type + ":t:" + tag.id + "::::";
+      }
+
+      function entityFilterValue(filter) {
+        var type = filter && filter.type !== "" ? filter.type : currentCategoryType();
+        var code = filter && filter.code ? filter.code : "a";
+        var id = filter && filter.id ? filter.id : "";
+        return type + ":" + code + ":" + id + "::::";
       }
 
       function focusAfterRender() {
         requestAnimationFrame(function () {
-          var target = document.querySelector(".movie-card.focusable") || document.querySelector(".chip.focusable");
+          var target = document.querySelector(".movie-card.focusable") || document.querySelector(".actor-card.focusable") || document.querySelector(".chip.focusable");
           if (target && !state.isTv) return;
           if (target) focusTarget(target);
         });
@@ -1512,6 +2104,12 @@
         document.body.classList.add("detail-active");
         els.detailStatus.textContent = "加载详情";
         els.detailContent.innerHTML = '<div class="empty"><span><span class="loading-dot"></span>加载中</span></div>';
+        state.detailMovie = null;
+        state.detailMagnets = [];
+        state.detailFullVariant = null;
+        state.detailFullResolving = false;
+        state.detailFullError = "";
+        state.detailResolveId += 1;
         if (pushHistory) history.pushState({ panel: "detail", id: id }, "", "#movie-" + encodeURIComponent(id));
         Promise.all([
           apiRequest("/v4/movies/" + encodeURIComponent(id), {}),
@@ -1521,10 +2119,65 @@
           var movie = displayMovie(items[0].movie || {});
           state.detailMovie = movie;
           state.detailMagnets = items[1].magnets || [];
+          state.detailFullResolving = !!(movie.canPlay && movie.number);
           renderDetail(movie, state.detailMagnets);
+          prepareFullVideo(movie);
         }).catch(function (err) {
           els.detailStatus.textContent = "详情失败";
           els.detailContent.innerHTML = '<div class="error">' + escapeHtml(err && err.message ? err.message : "详情加载失败") + '</div>';
+        });
+      }
+
+      function detailPlayButtonHtml(movie) {
+        if (state.detailFullVariant) {
+          return '<button class="text-button focusable" type="button" id="detailFullVideo">播放</button>';
+        }
+        if (state.detailFullResolving && movie && movie.canPlay) {
+          return '<button class="text-button focusable" type="button" disabled aria-busy="true">解析中</button>';
+        }
+        return "";
+      }
+
+      function updateDetailPlaySlot() {
+        var slot = $("detailPlaySlot");
+        if (!slot || !state.detailMovie) return;
+        slot.innerHTML = detailPlayButtonHtml(state.detailMovie);
+        var button = $("detailFullVideo");
+        if (button) button.addEventListener("click", function () { playFullVideo(state.detailMovie); });
+      }
+
+      function prepareFullVideo(movie) {
+        var detailId = state.detailId;
+        var resolveId;
+        if (!movie || !movie.number || !movie.canPlay) {
+          state.detailFullResolving = false;
+          updateDetailPlaySlot();
+          return;
+        }
+        state.detailFullResolving = true;
+        state.detailFullVariant = null;
+        state.detailFullError = "";
+        resolveId = ++state.detailResolveId;
+        updateDetailPlaySlot();
+        els.detailStatus.textContent = "解析播放链接";
+        Promise.all([
+          resolveFullVideo(movie),
+          prepareArtwork(movie)
+        ]).then(function (items) {
+          var variant = items[0];
+          if (state.detailId !== detailId || resolveId !== state.detailResolveId) return;
+          state.detailFullResolving = false;
+          state.detailFullVariant = variant;
+          state.detailFullError = "";
+          els.detailStatus.textContent = movie.number || "详情";
+          updateDetailPlaySlot();
+        }).catch(function (err) {
+          if (state.detailId !== detailId || resolveId !== state.detailResolveId) return;
+          state.detailFullResolving = false;
+          state.detailFullVariant = null;
+          state.detailFullError = err && err.message ? err.message : "播放链接解析失败";
+          els.detailStatus.textContent = movie.number || "详情";
+          updateDetailPlaySlot();
         });
       }
 
@@ -1539,6 +2192,8 @@
         for (i = 0; i < movie.actors.length && i < 8; i++) {
           actorNames.push(movie.actors[i].name || "");
         }
+        var actorMovieHtml = movie.actorMovies && movie.actorMovies.length ? relatedStripHtml(movie.actorMovies, "related") : "";
+        var relativeMovieHtml = movie.relativeMovies && movie.relativeMovies.length ? relatedStripHtml(movie.relativeMovies, "related") : "";
         var samples = movie.previewImages || [];
         var sampleHtml = samples.slice(0, 10).map(function (item, index) {
           var url = item.thumb_url || item.large_url || "";
@@ -1559,7 +2214,7 @@
         els.detailStatus.textContent = movie.number || "详情";
         els.detailContent.innerHTML = [
           '<div class="detail-layout">',
-          '<div class="detail-poster poster"><img src="' + CONFIG.emptyGif + '" data-encoded-src="' + escapeHtml(poster) + '" alt="' + escapeHtml(compactTitle(movie)) + '"></div>',
+          '<button class="detail-poster poster focusable" type="button" data-sample="' + escapeHtml(poster) + '" aria-label="放大封面"><img src="' + CONFIG.emptyGif + '" data-encoded-src="' + escapeHtml(poster) + '" alt="' + escapeHtml(compactTitle(movie)) + '"></button>',
           '<div class="detail-info">',
           '<h2 class="detail-title"><span class="code">' + escapeHtml(movie.number) + '</span> ' + escapeHtml(movie.title) + '</h2>',
           '<p class="detail-meta">' + escapeHtml(movie.releaseDate || "-") + ' · ' + escapeHtml(movie.duration || "-") + (movie.score ? ' · ' + movie.score.toFixed(2) + ' 分' : '') + (movie.watchedCount ? ' · ' + movie.watchedCount + ' 看过' : '') + '</p>',
@@ -1567,18 +2222,21 @@
           actorNames.length ? '<p class="detail-meta">' + escapeHtml(actorNames.join(" · ")) + '</p>' : '',
           '<div class="tag-list">' + tagHtml.join("") + '</div>',
           '<div class="detail-actions">',
-          movie.number ? '<button class="text-button focusable" type="button" id="detailFullVideo">完整视频</button>' : '',
-          movie.previewVideoUrl ? '<button class="text-button focusable" type="button" id="detailPreview">播放预告</button>' : '',
+          '<span id="detailPlaySlot">' + detailPlayButtonHtml(movie) + '</span>',
+          movie.previewVideoUrl ? '<button class="text-button focusable" type="button" id="detailPreview">预览</button>' : '',
           magnets && magnets.length ? '<button class="text-button focusable" type="button" id="detailFirstMagnet">播放磁链</button>' : '',
           '<button class="text-button focusable" type="button" id="detailNativeSearch">原生搜索</button>',
           '</div>',
           movie.summary ? '<div class="detail-block"><h3>简介</h3><div class="detail-meta">' + escapeHtml(movie.summary) + '</div></div>' : '',
           '<div class="detail-block"><h3>样图</h3><div class="samples">' + (sampleHtml || '<div class="empty">暂无样图</div>') + '</div></div>',
           '<div class="detail-block"><h3>磁链</h3><div id="magnetList">' + magnetHtml + '</div></div>',
+          actorMovieHtml ? '<div class="detail-block"><h3>TA还出演过</h3>' + actorMovieHtml + '</div>' : '',
+          relativeMovieHtml ? '<div class="detail-block"><h3>相关推荐</h3>' + relativeMovieHtml + '</div>' : '',
           '</div>',
           '</div>'
         ].join("");
         decodeImages(els.detailContent);
+        prepareArtwork(movie);
         bindDetailActions();
         requestAnimationFrame(function () {
           var first = els.detailContent.querySelector(".focusable") || els.closeDetailBtn;
@@ -1606,15 +2264,42 @@
         Array.prototype.forEach.call(samples, function (button) {
           button.addEventListener("click", function () {
             var url = button.getAttribute("data-sample");
-            if (url) window.open(url, "_blank");
+            if (url) openImageViewer(url);
           });
         });
+      }
+
+      function openImageViewer(url) {
+        if (!url) return;
+        els.imageViewer.hidden = false;
+        els.imageViewerImg.src = CONFIG.emptyGif;
+        decodeImage(url).then(function (src) {
+          if (!els.imageViewer.hidden) els.imageViewerImg.src = src || url;
+        });
+        if (state.isTv) requestAnimationFrame(function () { focusTarget(els.closeImageBtn); });
+      }
+
+      function closeImageViewer(skipFocus) {
+        if (els.imageViewer.hidden) return;
+        els.imageViewer.hidden = true;
+        els.imageViewerImg.src = CONFIG.emptyGif;
+        if (state.isTv && !skipFocus) {
+          requestAnimationFrame(function () {
+            var target = els.detailContent.querySelector("[data-sample].focusable") || els.closeDetailBtn;
+            focusTarget(target);
+          });
+        }
       }
 
       function closeDetail(fromPop) {
         state.detailId = "";
         state.detailMovie = null;
         state.detailMagnets = [];
+        state.detailFullVariant = null;
+        state.detailFullResolving = false;
+        state.detailFullError = "";
+        state.detailResolveId += 1;
+        closeImageViewer(true);
         els.detailSheet.hidden = true;
         document.body.classList.remove("detail-active");
         if (!fromPop && location.hash.indexOf("#movie-") === 0) history.back();
@@ -1626,7 +2311,7 @@
         var fm = nativeSdk();
         var title = compactTitle(movie);
         if (fm && fm.play) {
-          fm.play(movie.previewVideoUrl, title, { headers: { Referer: CONFIG.sourceOrigin } }).catch(function () {});
+          fm.play(movie.previewVideoUrl, title, playbackOptions(movie, { Referer: CONFIG.sourceOrigin })).catch(function () {});
           return;
         }
         window.open(movie.previewVideoUrl, "_blank");
@@ -1696,47 +2381,27 @@
         return siteJsonRequest(fullVideoUrl(movie)).then(function (body) {
           var variants = fullVideoVariants(body);
           var selected = pickFullVideoVariant(variants);
-          if (!selected) throw new Error("未找到完整视频源");
+          if (!selected) throw new Error("未找到播放源");
           return selected;
         });
       }
 
-      function restoreFullButton(button, label) {
-        if (!button) return;
-        button.disabled = false;
-        button.removeAttribute("aria-busy");
-        button.textContent = label;
-        if (state.isTv) focusTarget(button);
-      }
-
       function playFullVideo(movie) {
-        var button = $("detailFullVideo");
-        var oldText = button ? button.textContent : "完整视频";
-        if (button) {
-          button.disabled = true;
-          button.setAttribute("aria-busy", "true");
-          button.textContent = "解析中";
+        var variant = state.detailFullVariant;
+        if (!movie || !variant) return;
+        var url = variantUrl(variant);
+        var label = variant && variant.label ? " · " + variant.label : "";
+        var title = variant && variant.title ? variant.title : compactTitle(movie) + label;
+        var headers = { Referer: variant && variant.pageUrl ? variant.pageUrl : CONFIG.sourceOrigin };
+        var fm = nativeSdk();
+        els.detailStatus.textContent = "打开播放";
+        if (fm && fm.play) {
+          fm.play(url, title, playbackOptions(movie, headers)).catch(function () {
+            els.detailStatus.textContent = "播放失败";
+          });
+          return;
         }
-        els.detailStatus.textContent = "解析完整视频";
-        resolveFullVideo(movie).then(function (variant) {
-          var url = variantUrl(variant);
-          var label = variant && variant.label ? " · " + variant.label : "";
-          var title = variant && variant.title ? variant.title : compactTitle(movie) + label;
-          var headers = { Referer: variant && variant.pageUrl ? variant.pageUrl : CONFIG.sourceOrigin };
-          var fm = nativeSdk();
-          els.detailStatus.textContent = "打开完整视频";
-          restoreFullButton(button, oldText);
-          if (fm && fm.play) {
-            fm.play(url, title, { headers: headers }).catch(function () {
-              els.detailStatus.textContent = "播放失败";
-            });
-            return;
-          }
-          window.open(url, "_blank");
-        }).catch(function (err) {
-          restoreFullButton(button, oldText);
-          els.detailStatus.textContent = err && err.message ? err.message : "完整视频解析失败";
-        });
+        window.open(url, "_blank");
       }
 
       function playMagnet(item, movie) {
@@ -1746,7 +2411,13 @@
         var title = movie ? compactTitle(movie) : (item.name || url);
         var fm = nativeSdk();
         if (fm && fm.pan && fm.pan.play) {
-          fm.pan.play({ type: "magnet", url: url, title: title }).catch(function () {});
+          fm.pan.play({
+            type: "magnet",
+            url: url,
+            title: title,
+            pic: posterPic(movie),
+            wallPic: wallPic(movie)
+          }).catch(function () {});
           return;
         }
         location.href = url;
@@ -1761,6 +2432,7 @@
           return;
         }
         state.currentQuery = keyword;
+        state.entityFilter = null;
         state.page = 1;
         loadList();
       }
@@ -1784,6 +2456,7 @@
         if (event) event.preventDefault();
         var value = text(els.searchInput.value).trim();
         state.currentQuery = value;
+        state.entityFilter = null;
         state.page = 1;
         loadList();
       }
@@ -1791,9 +2464,88 @@
       function handleClick(event) {
         var mode = event.target.closest ? event.target.closest("[data-mode]") : null;
         var filter = event.target.closest ? event.target.closest("[data-filter]") : null;
+        var period = event.target.closest ? event.target.closest("[data-period]") : null;
+        var searchType = event.target.closest ? event.target.closest("[data-search-type]") : null;
+        var categorySort = event.target.closest ? event.target.closest("[data-category-sort]") : null;
+        var contentType = event.target.closest ? event.target.closest("[data-content-type]") : null;
+        var tagGroup = event.target.closest ? event.target.closest("[data-tag-group]") : null;
+        var tag = event.target.closest ? event.target.closest("[data-tag-id]") : null;
+        var clearEntity = event.target.closest ? event.target.closest("[data-clear-entity]") : null;
+        var entity = event.target.closest ? event.target.closest("[data-entity-id]") : null;
         var card = event.target.closest ? event.target.closest(".movie-card[data-id]") : null;
         if (mode) {
           state.mode = mode.getAttribute("data-mode");
+          state.currentQuery = "";
+          state.entityFilter = null;
+          state.activeTagId = "";
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (period) {
+          state.rankPeriod = period.getAttribute("data-period");
+          state.currentQuery = "";
+          state.entityFilter = null;
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (searchType) {
+          state.searchType = searchType.getAttribute("data-search-type");
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (categorySort) {
+          state.categorySort = categorySort.getAttribute("data-category-sort");
+          state.currentQuery = "";
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (contentType) {
+          state.contentType = contentType.getAttribute("data-content-type") || "0";
+          state.currentQuery = "";
+          state.entityFilter = null;
+          state.activeTagGroup = "";
+          state.activeTagId = "";
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (tagGroup) {
+          state.activeTagGroup = tagGroup.getAttribute("data-tag-group") || "";
+          state.activeTagId = "";
+          state.currentQuery = "";
+          state.entityFilter = null;
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (tag) {
+          state.activeTagId = tag.getAttribute("data-tag-id") || "";
+          state.currentQuery = "";
+          state.entityFilter = null;
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (clearEntity) {
+          state.entityFilter = null;
+          state.page = 1;
+          loadList();
+          return;
+        }
+        if (entity) {
+          state.entityFilter = {
+            kind: entity.getAttribute("data-entity-kind") || "",
+            code: entity.getAttribute("data-entity-code") || "a",
+            id: entity.getAttribute("data-entity-id") || "",
+            name: entity.getAttribute("data-entity-name") || entity.getAttribute("data-entity-id") || "",
+            type: entity.getAttribute("data-entity-type") || state.contentType,
+            label: entity.getAttribute("data-entity-label") || "筛选"
+          };
+          if (state.entityFilter.kind && isEntityMode(state.entityFilter.kind)) state.mode = state.entityFilter.kind;
           state.currentQuery = "";
           state.page = 1;
           loadList();
@@ -1802,6 +2554,7 @@
         if (filter) {
           state.filter = filter.getAttribute("data-filter");
           state.currentQuery = "";
+          state.entityFilter = null;
           state.page = 1;
           loadList();
           return;
@@ -1847,7 +2600,7 @@
 
       function moveFocus(key) {
         var active = document.activeElement;
-        var panel = !els.detailSheet.hidden ? els.detailSheet : document;
+        var panel = !els.imageViewer.hidden ? els.imageViewer : (!els.detailSheet.hidden ? els.detailSheet : document);
         var items = focusables(panel);
         if (!items.length) return;
         if (!active || items.indexOf(active) === -1) {
@@ -1906,6 +2659,11 @@
       function handleKeydown(event) {
         var key = normalizeRemoteKey(event);
         var active = document.activeElement;
+        if (!els.imageViewer.hidden && (key === "Escape" || key === "Backspace" && state.isTv)) {
+          event.preventDefault();
+          closeImageViewer();
+          return;
+        }
         if (state.isTv && active === els.searchInput && !els.searchInput.hasAttribute("readonly") && key === "Escape") {
           event.preventDefault();
           els.searchInput.setAttribute("readonly", "readonly");
@@ -1954,6 +2712,10 @@
           loadList();
         });
         els.closeDetailBtn.addEventListener("click", function () { closeDetail(false); });
+        els.closeImageBtn.addEventListener("click", closeImageViewer);
+        els.imageViewer.addEventListener("click", function (event) {
+          if (event.target === els.imageViewer || event.target.className === "image-inner") closeImageViewer();
+        });
         els.searchInput.addEventListener("blur", function () {
           if (state.isTv) els.searchInput.setAttribute("readonly", "readonly");
         });
@@ -1990,6 +2752,9 @@
         els.detailStatus = $("detailStatus");
         els.detailContent = $("detailContent");
         els.closeDetailBtn = $("closeDetailBtn");
+        els.imageViewer = $("imageViewer");
+        els.imageViewerImg = $("imageViewerImg");
+        els.closeImageBtn = $("closeImageBtn");
         initEvents();
         renderTabs();
         waitForNativeSdk(1800).then(function (ready) {
